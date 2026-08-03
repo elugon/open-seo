@@ -64,6 +64,9 @@
       "POLICY_AUD": {
         "description": "Cloudflare Access Application Audience (AUD) tag for this Worker route/domain."
       },
+      "SELFHOST_DOMAIN": {
+        "description": "Optional custom hostname provisioned on both the self-hosted Worker and its Cloudflare Access application."
+      },
       "DATAFORSEO_API_KEY": {
         "description": "Base64-encoded `login:password` for DataForSEO API access."
       },

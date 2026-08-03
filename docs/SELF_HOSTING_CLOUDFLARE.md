@@ -50,13 +50,18 @@ Copy the template and fill in the required values:
 cp .env.selfhost.example .env.selfhost
 ```
 
+Set `SELFHOST_DOMAIN` to a bare hostname in a Cloudflare zone on the same
+account when you want a custom domain. The deploy provisions that hostname on
+both the Worker and its Cloudflare Access application. Leave it empty to keep
+the default `workers.dev` URL.
+
 ## 4) Deploy
 
 ```bash
 pnpm deploy:selfhost --yes
 ```
 
-This provisions the D1 database, KV namespaces, and R2 bucket, applies the database migrations, deploys the Worker, and creates the Cloudflare Access application protecting it (allowing exactly `ACCESS_ALLOWED_EMAILS`). If the account has no Zero Trust team yet, one is created for you, named after your workers.dev subdomain.
+This provisions the D1 database, KV namespaces, and R2 bucket, applies the database migrations, deploys the Worker, and creates the Cloudflare Access application protecting its custom domain or `workers.dev` hostname (allowing exactly `ACCESS_ALLOWED_EMAILS`). If the account has no Zero Trust team yet, one is created for you, named after your workers.dev subdomain.
 
 To manage the Access application yourself instead, set `TEAM_DOMAIN` (`https://your-team.cloudflareaccess.com`) and `POLICY_AUD` (the application's audience tag) in `.env.selfhost` — the deploy then provisions no Access resources.
 

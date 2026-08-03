@@ -13,6 +13,8 @@ import {
   HOSTED_PROD_STAGE,
   readWorkersSubdomain,
   requireAllowedEmails,
+  selfHostDomain,
+  selfHostWorkerRouting,
   workerName,
 } from "./alchemy.access.ts";
 
@@ -172,6 +174,7 @@ const resolveSelfHostAccess = (
   stage: string,
   provision: boolean,
   workersSubdomain: string,
+  customDomain: string,
 ) =>
   Effect.gen(function* () {
     let teamDomain = yield* optionalVar("TEAM_DOMAIN");
@@ -246,7 +249,11 @@ const resolveSelfHostAccess = (
         applicationId: "SelfHostAccess",
         policyName: `open-seo ${stage} self-host users`,
         applicationName: `open-seo ${stage}`,
-        domain: `${workerName(stage)}.${subdomain}`,
+        domain: selfHostDomain({
+          stage,
+          workersSubdomain: subdomain,
+          customDomain,
+        }),
         emails: allowedEmails,
       });
       policyAud = application.aud;
@@ -310,6 +317,10 @@ export default Alchemy.Stack(
       Config.withDefault("cloudflare_access"),
     );
     const databaseProvider = yield* optionalVar("DATABASE_PROVIDER");
+    const customDomain =
+      authMode === "cloudflare_access" && !prod
+        ? yield* optionalVar("SELFHOST_DOMAIN")
+        : "";
     const workersSubdomain = yield* readWorkersSubdomain({ required: false });
 
     // Auth needs an absolute BETTER_AUTH_URL. Prod sets it explicitly;
@@ -352,12 +363,21 @@ export default Alchemy.Stack(
       stage,
       authMode === "cloudflare_access" && !prod,
       workersSubdomain,
+      customDomain,
     );
+    const selfHostRouting = selfHostWorkerRouting(customDomain);
 
     const app = yield* Cloudflare.Worker("open-seo", {
       name: workerName(stage),
-      // Prod serves the real domains; the zone is inferred from the hostname.
-      domain: prod ? ["app.openseo.so", "www.app.openseo.so"] : undefined,
+      // Custom domains and their zones are inferred from the hostname. Keep the
+      // same hostname on the Worker and Access application so the auth boundary
+      // cannot drift from the public route.
+      domain: prod
+        ? ["app.openseo.so", "www.app.openseo.so"]
+        : selfHostRouting.domain,
+      // With a custom domain, workers.dev would be an alternate route outside
+      // the Access application. Alchemy enables it by default unless `false`.
+      url: prod ? undefined : selfHostRouting.url,
       // Prebuilt worker from `vite build` (@cloudflare/vite-plugin). The entry
       // exports the DO + WorkflowEntrypoint classes (re-exported by
       // src/server.ts), which `bundle: false` requires. Sibling chunks under

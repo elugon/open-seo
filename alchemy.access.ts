@@ -22,6 +22,42 @@ export const HOSTED_PROD_STAGE = "hosted-prod";
 export const workerName = (stage: string) =>
   stage === HOSTED_PROD_STAGE ? WORKER_PREFIX : `${WORKER_PREFIX}-${stage}`;
 
+export const selfHostDomain = ({
+  stage,
+  workersSubdomain,
+  customDomain,
+}: {
+  stage: string;
+  workersSubdomain: string;
+  customDomain: string;
+}) => {
+  if (!customDomain) return `${workerName(stage)}.${workersSubdomain}`;
+
+  const parsed = new URL(`https://${customDomain}`);
+  if (
+    !customDomain.includes(".") ||
+    parsed.hostname !== customDomain ||
+    parsed.port ||
+    parsed.pathname !== "/" ||
+    parsed.search ||
+    parsed.hash
+  ) {
+    throw new Error(
+      "SELFHOST_DOMAIN must be a bare hostname such as openseo.example.com.",
+    );
+  }
+
+  return customDomain;
+};
+
+// A custom hostname is the Cloudflare Access security boundary. Disable the
+// default workers.dev route so there is no second public entry point that can
+// bypass that boundary.
+export const selfHostWorkerRouting = (customDomain: string) => ({
+  domain: customDomain ? [customDomain] : undefined,
+  url: customDomain ? false : undefined,
+});
+
 // Matches every preview worker hostname; production's unsuffixed worker does
 // not match (Access allows one wildcard per dot-label).
 export const previewWildcard = (subdomain: string) =>

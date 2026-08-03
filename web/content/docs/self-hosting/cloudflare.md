@@ -48,6 +48,13 @@ Copy the template and fill in the required values:
 cp .env.selfhost.example .env.selfhost
 ```
 
+Set `SELFHOST_DOMAIN` to a bare hostname, for example `openseo.example.com`,
+when you want the Worker and its Cloudflare Access application on a custom
+domain. The zone must already be active in the same Cloudflare account. The
+deployment disables the default `workers.dev` route so Access remains the only
+public entry point. Leave the variable empty to keep the standard
+`open-seo-<stage>.<account>.workers.dev` URL.
+
 ## 4) Deploy
 
 ```bash
