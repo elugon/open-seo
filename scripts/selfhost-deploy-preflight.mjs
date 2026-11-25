@@ -64,10 +64,17 @@ if (!AUTH_MODES.includes(authMode)) {
 const managedAccess =
   authMode === "cloudflare_access" && !(env.TEAM_DOMAIN && env.POLICY_AUD);
 if (authMode === "cloudflare_access") {
-  const adminEmail = env.SELFHOST_ADMIN_EMAIL?.trim().toLowerCase();
-  if (!adminEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(adminEmail)) {
+  const rawAdminEmails =
+    env.SELFHOST_ADMIN_EMAILS?.trim() || env.SELFHOST_ADMIN_EMAIL;
+  const adminEmails = rawAdminEmails
+    ? rawAdminEmails.split(",").map((email) => email.trim().toLowerCase())
+    : [];
+  if (
+    !adminEmails.length ||
+    adminEmails.some((email) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+  ) {
     fail(
-      `${em("SELFHOST_ADMIN_EMAIL")} must be a valid email in ${envFile} when AUTH_MODE=cloudflare_access.`,
+      `${em("SELFHOST_ADMIN_EMAILS")} must contain a comma-separated list of valid administrator emails in ${envFile} when AUTH_MODE=cloudflare_access.`,
     );
   }
   if (managedAccess) {
@@ -75,9 +82,11 @@ if (authMode === "cloudflare_access") {
       .split(",")
       .map((email) => email.trim().toLowerCase())
       .filter(Boolean);
-    if (!allowedEmails.includes(adminEmail)) {
+    if (
+      !adminEmails.every((adminEmail) => allowedEmails.includes(adminEmail))
+    ) {
       fail(
-        `${em("SELFHOST_ADMIN_EMAIL")} must also appear in ${em("ACCESS_ALLOWED_EMAILS")} for the managed Cloudflare Access application.`,
+        `Every address in ${em("SELFHOST_ADMIN_EMAILS")} must also appear in ${em("ACCESS_ALLOWED_EMAILS")} for the managed Cloudflare Access application.`,
       );
     }
   }

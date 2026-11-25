@@ -42,7 +42,7 @@ With Cloudflare Access, admit teammates through the Access policy first. After a
 - **Viewer** can read saved project results.
 - **Collaborator** can also edit and delete project content and run research and audits that use the configured providers.
 
-The account configured in `SELFHOST_ADMIN_EMAIL` can access every project and manage assignments, projects, and integrations.
+Each account listed in `SELFHOST_ADMIN_EMAILS` can access every project and manage assignments, projects, and integrations.
 Revoking access takes effect for subsequent requests. Scheduled checks belong to the project and continue running until someone with access pauses them.
 
 ### Password accounts

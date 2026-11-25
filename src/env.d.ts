@@ -54,8 +54,10 @@ declare namespace Cloudflare {
     EVERYAPP_AUDIENCE?: string;
     TEAM_DOMAIN?: string;
     POLICY_AUD?: string;
+    // Comma-separated initial administrators for AUTH_MODE=cloudflare_access.
+    SELFHOST_ADMIN_EMAILS?: string;
     // Initial administrator for AUTH_MODE=cloudflare_access; compared against
-    // the email claim on a Cloudflare Access JWT verified by the app.
+    // the email claim on a verified JWT; retained for deploy compatibility.
     SELFHOST_ADMIN_EMAIL?: string;
     // Flagship app holding our feature flags (src/server/lib/featureFlags.ts).
     // Bound only on hosted production; everywhere else every flag reads off.

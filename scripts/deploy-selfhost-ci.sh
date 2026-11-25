@@ -1,9 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+operation=${1:-deploy}
+case "$operation" in
+  plan|deploy) ;;
+  *) echo '::error::Expected a self-host operation of plan or deploy.'; exit 1 ;;
+esac
+
 main_ref=$(git ls-remote --exit-code origin refs/heads/main)
 if [[ ${main_ref%%$'\t'*} != "${GITHUB_SHA:?}" ]]; then
-  echo '::notice::Skipping deployment because this commit is no longer main.'
+  echo "::notice::Skipping $operation because this commit is no longer main."
+  if [[ "$operation" == plan ]]; then exit 1; fi
   exit 0
 fi
 
@@ -23,9 +30,10 @@ set +C
 trap 'rm -f .env.selfhost' EXIT
 unset SELFHOST_ENV
 
-node --input-type=module - "$domain" <<'NODE'
-import { readFileSync } from 'node:fs';
+node --experimental-strip-types --input-type=module - "$domain" <<'NODE'
+import { appendFileSync, readFileSync } from 'node:fs';
 import { parseEnv } from 'node:util';
+import { getSelfhostAdminEmails, normalizeEmailAddress, parseSelfhostAdminEmails } from './src/shared/selfhost-checks.ts';
 
 const config = parseEnv(readFileSync('.env.selfhost', 'utf8'));
 if (config.AUTH_MODE !== 'cloudflare_access' || config.CUSTOM_DOMAIN !== process.argv[2]) {
@@ -37,23 +45,32 @@ if (config.DATABASE_PROVIDER && config.DATABASE_PROVIDER !== 'd1') {
 if (Boolean(config.TEAM_DOMAIN) !== Boolean(config.POLICY_AUD)) {
   throw new Error('Set both TEAM_DOMAIN and POLICY_AUD for managed-outside-Alchemy Access, or omit both.');
 }
-const adminEmail = config.SELFHOST_ADMIN_EMAIL?.trim().toLowerCase();
-if (!adminEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(adminEmail)) {
-  throw new Error('SELFHOST_ENV must set a valid SELFHOST_ADMIN_EMAIL for the initial Cloudflare Access administrator.');
+const configuredAdmins = process.env.SELFHOST_ADMIN_EMAILS || undefined;
+const adminEmails = getSelfhostAdminEmails(configuredAdmins ?? config.SELFHOST_ADMIN_EMAILS, config.SELFHOST_ADMIN_EMAIL);
+if (!adminEmails) {
+  throw new Error('Set a valid SELFHOST_ADMIN_EMAILS list in the GitHub environment secret or SELFHOST_ENV.');
+}
+if (configuredAdmins && config.SELFHOST_ADMIN_EMAILS !== undefined) {
+  const secretAdmins = parseSelfhostAdminEmails(config.SELFHOST_ADMIN_EMAILS);
+  if (!secretAdmins || secretAdmins.length !== adminEmails.length ||
+      !adminEmails.every((email) => secretAdmins.includes(email))) {
+    throw new Error('SELFHOST_ADMIN_EMAILS differs between the separate GitHub secret and SELFHOST_ENV.');
+  }
 }
 if (!(config.TEAM_DOMAIN && config.POLICY_AUD)) {
-  const allowedEmails = (config.ACCESS_ALLOWED_EMAILS ?? '')
-    .split(',')
-    .map((email) => email.trim().toLowerCase())
-    .filter(Boolean);
-  if (!allowedEmails.includes(adminEmail)) {
-    throw new Error('SELFHOST_ADMIN_EMAIL must also appear in ACCESS_ALLOWED_EMAILS for the managed Cloudflare Access application.');
+  const allowedEmails = (config.ACCESS_ALLOWED_EMAILS ?? '').split(',').map(normalizeEmailAddress);
+  if (!adminEmails.every((email) => allowedEmails.includes(email))) {
+    throw new Error('Every administrator must appear in ACCESS_ALLOWED_EMAILS for the managed Cloudflare Access application.');
   }
 }
 for (const name of ['CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN', 'ALCHEMY_PROFILE']) {
   if (Object.hasOwn(config, name)) throw new Error(`Configure ${name} outside SELFHOST_ENV.`);
 }
+if (configuredAdmins && config.SELFHOST_ADMIN_EMAILS === undefined) {
+  appendFileSync('.env.selfhost', `\nSELFHOST_ADMIN_EMAILS=${JSON.stringify(adminEmails.join(','))}\n`);
+}
 NODE
+unset SELFHOST_ADMIN_EMAILS
 
 curl --fail --silent --show-error --max-time 20 \
   --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
@@ -61,6 +78,14 @@ curl --fail --silent --show-error --max-time 20 \
   | jq -e --arg domain "$domain" --arg worker "$worker" \
     '.success and any(.result[]; .hostname == $domain and .service == $worker and .environment == "production")' \
     > /dev/null
+
+if [[ "$operation" == plan ]]; then
+  pnpm build:report-widgets
+  pnpm exec vite build --mode selfhost
+  pnpm exec tsc --noEmit
+  pnpm alchemy plan deploy/alchemy/alchemy.run.ts --env-file .env.selfhost --stage selfhost
+  exit 0
+fi
 
 pnpm deploy:selfhost --yes
 

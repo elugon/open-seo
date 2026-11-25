@@ -1,7 +1,7 @@
 import { AUTH_MODES } from "@/lib/auth-mode";
 import {
   looksLikeDataForSeoKey,
-  isValidEmailAddress,
+  getSelfhostAdminEmails,
   MIN_BETTER_AUTH_SECRET_LENGTH,
   validateTeamDomain,
 } from "@/shared/selfhost-checks";
@@ -128,21 +128,38 @@ function checkAuthMode(env: EnvRecord, items: PreflightItem[]): void {
   // cloudflare_access (explicit or defaulted)
   const teamDomain = get(env, "TEAM_DOMAIN");
   const policyAud = get(env, "POLICY_AUD");
-  const adminEmail = get(env, "SELFHOST_ADMIN_EMAIL");
+  let adminEmails: string[] | null = null;
+  let invalidAdminEmails = false;
+  try {
+    adminEmails = getSelfhostAdminEmails(
+      get(env, "SELFHOST_ADMIN_EMAILS"),
+      get(env, "SELFHOST_ADMIN_EMAIL"),
+    );
+  } catch {
+    invalidAdminEmails = true;
+    items.push({
+      key: "auth",
+      name: "SELFHOST_ADMIN_EMAILS",
+      level: "fail",
+      message:
+        "SELFHOST_ADMIN_EMAILS must contain valid comma-separated administrator email addresses.",
+    });
+  }
   const modeLabel = rawMode
     ? "cloudflare_access"
     : "cloudflare_access (default — AUTH_MODE is unset)";
 
-  if (!adminEmail || !isValidEmailAddress(adminEmail)) {
+  if (!invalidAdminEmails && !adminEmails?.length) {
     items.push({
       key: "auth",
-      name: "SELFHOST_ADMIN_EMAIL",
+      name: "SELFHOST_ADMIN_EMAILS",
       level: "fail",
       message:
-        "Set SELFHOST_ADMIN_EMAIL to the initial administrator's valid email.",
+        "Set SELFHOST_ADMIN_EMAILS to a comma-separated list of administrator emails (or SELFHOST_ADMIN_EMAIL for compatibility).",
     });
-    if (teamDomain && policyAud) return;
   }
+  if ((invalidAdminEmails || !adminEmails?.length) && teamDomain && policyAud)
+    return;
 
   if (!teamDomain || !policyAud) {
     const missing = [

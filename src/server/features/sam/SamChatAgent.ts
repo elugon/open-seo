@@ -18,7 +18,7 @@ import { generateText, type UIMessage } from "ai";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { getAuthMode } from "@/lib/auth-mode";
-import { isValidEmailAddress } from "@/shared/selfhost-checks";
+import { getSelfhostAdminEmails } from "@/shared/selfhost-checks";
 import { db, withPgClient } from "@/db";
 import { user } from "@/db/schema";
 import {
@@ -337,12 +337,20 @@ export class SamChatAgent extends Think {
       getAuthMode(getEnvValueSync(this.env, "AUTH_MODE")) ===
       "cloudflare_access"
     ) {
-      const adminEmail = getEnvValueSync(this.env, "SELFHOST_ADMIN_EMAIL");
-      if (!adminEmail || !isValidEmailAddress(adminEmail)) return null;
+      let adminEmails: string[] | null;
+      try {
+        adminEmails = getSelfhostAdminEmails(
+          getEnvValueSync(this.env, "SELFHOST_ADMIN_EMAILS"),
+          getEnvValueSync(this.env, "SELFHOST_ADMIN_EMAIL"),
+        );
+      } catch {
+        return null;
+      }
+      if (!adminEmails?.length) return null;
       const shared = await resolveSharedWorkspaceContext(
         ctx.row.userId,
         currentUser.email,
-        adminEmail,
+        adminEmails,
       );
       if (shared.organizationId !== ctx.project.organizationId) return null;
       return {
