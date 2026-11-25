@@ -168,4 +168,5 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           SELFHOST_ENV: ${{ secrets.SELFHOST_ENV }}
           SELFHOST_ADMIN_EMAILS: ${{ secrets.SELFHOST_ADMIN_EMAILS }}
+          SELFHOST_OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           SELFHOST_OPERATION: ${{ github.event_name == 'workflow_dispatch' && 'plan' || 'deploy' }}

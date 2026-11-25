@@ -29,6 +29,10 @@ set -e
 printf '%s\n' "$*" >> calls
 grep -qx 'DATAFORSEO_API_KEY=fixture-secret' .env.selfhost
 grep -qxF "$EXPECTED_ADMIN_LINE" .env.selfhost
+if [[ -n "${EXPECTED_OPENROUTER_LINE:-}" ]]; then
+  grep -qxF "$EXPECTED_OPENROUTER_LINE" .env.selfhost
+  test -z "${SELFHOST_OPENROUTER_API_KEY+x}"
+fi
 STUB
 chmod +x bin/git bin/curl bin/jq bin/pnpm
 export PATH="$scratch/bin:$PATH"
@@ -49,13 +53,24 @@ test ! -e .env.selfhost
 : > calls
 unset SELFHOST_ADMIN_EMAILS
 export EXPECTED_ADMIN_LINE='SELFHOST_ADMIN_EMAIL=admin@example.com'
-bash "$root/scripts/deploy-selfhost-ci.sh" deploy
+EXPECTED_OPENROUTER_LINE='SELFHOST_OPENROUTER_API_KEY=sk-or-v1-fixture' \
+  SELFHOST_OPENROUTER_API_KEY='sk-or-v1-fixture' \
+  bash "$root/scripts/deploy-selfhost-ci.sh" deploy
 test "$(cat calls)" = 'deploy:selfhost --yes'
 test ! -e .env.selfhost
 
 : > calls
 if SELFHOST_ADMIN_EMAILS='admin@example.com,unknown@example.com' bash "$root/scripts/deploy-selfhost-ci.sh" plan 2>/dev/null; then
   echo 'Planning must reject administrators missing from the Access allowlist.' >&2
+  exit 1
+fi
+test ! -s calls
+test ! -e .env.selfhost
+
+if SELFHOST_ENV="$SELFHOST_ENV"$'\nOPENROUTER_BASE_URL=https://provider.example.com/api/v1' \
+  SELFHOST_OPENROUTER_API_KEY='sk-or-v1-fixture' \
+  bash "$root/scripts/deploy-selfhost-ci.sh" deploy 2>/dev/null; then
+  echo 'A separate OpenRouter key must not be deployed to a custom endpoint.' >&2
   exit 1
 fi
 test ! -s calls

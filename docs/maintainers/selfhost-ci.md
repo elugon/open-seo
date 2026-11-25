@@ -10,6 +10,12 @@ The `deploy-selfhost` job in [CI](../../.github/workflows/ci.yml) publishes `ope
 4. Back up the live D1 database. Under **Actions → CI**, select **Run workflow** on `main`. CI builds the Worker and runs `alchemy plan` using the production configuration. The account-limit check briefly uploads and removes a temporary Worker. Confirm that the plan retains the existing database, Access application, and custom domain. Resolve any unexpected replacement before deploying.
 5. Set the repository Actions variable `ENABLE_SELFHOST_DEPLOY` to `true`. The next push to `main` can deploy once CI passes. To deploy the current tip after planning, rerun its push CI run. Check the workflow result, then sign in at `https://openseo.ighenatt.es` to verify the live app with an authorized account.
 
+## Configure OpenRouter
+
+Store the production OpenRouter API key as `OPENROUTER_API_KEY` in the `selfhost-production` GitHub environment. CI uses it for the default OpenRouter API. It takes precedence over an OpenRouter key in the `SELFHOST_ENV` secret, so you can rotate it independently. Keep keys for a custom OpenAI-compatible endpoint in `SELFHOST_ENV` alongside their base URL.
+
+A manual CI plan validates the separate key against OpenRouter without running inference. After the plan passes, deploy the current `main` commit and verify that SAM can respond inside OpenSEO.
+
 ## Stop or roll back
 
 Set `ENABLE_SELFHOST_DEPLOY` to `false` to stop scheduling new automatic deploys. Let an active migration finish. Review the Cloudflare deployment and the Alchemy state before retrying. A [Worker rollback](https://developers.cloudflare.com/workers/versions-and-deployments/rollbacks/) changes the Worker version but leaves D1 migrations and data in place. Check schema compatibility before reverting code.
