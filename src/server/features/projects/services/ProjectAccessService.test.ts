@@ -152,4 +152,15 @@ describe("ProjectAccessService", () => {
       }),
     ).resolves.toBeUndefined();
   });
+
+  it("rejects member assignment changes before writing", async () => {
+    await expect(
+      ProjectAccessService.setAssignment(member, {
+        memberId: "another-member",
+        projectId: "p1",
+        role: "collaborator",
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(ProjectAccessRepository.setAssignment).not.toHaveBeenCalled();
+  });
 });
