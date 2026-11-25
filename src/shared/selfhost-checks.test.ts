@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  getSelfhostAdminEmails,
   isTelemetryOptOutValue,
   looksLikeDataForSeoKey,
+  parseSelfhostAdminEmails,
   validateTeamDomain,
 } from "./selfhost-checks";
 
@@ -52,4 +54,37 @@ describe("isTelemetryOptOutValue", () => {
       expect(isTelemetryOptOutValue(value)).toBe(false);
     },
   );
+});
+
+describe("self-host administrator email configuration", () => {
+  it("normalizes and deduplicates a comma-separated administrator list", () => {
+    expect(
+      parseSelfhostAdminEmails(
+        " Admin@Example.com,admin@example.com,other@example.com ",
+      ),
+    ).toEqual(["admin@example.com", "other@example.com"]);
+  });
+
+  it("returns null when no administrator email is configured", () => {
+    expect(parseSelfhostAdminEmails(undefined)).toBeNull();
+    expect(parseSelfhostAdminEmails("  ")).toBeNull();
+  });
+
+  it("rejects malformed and empty list entries", () => {
+    expect(() =>
+      parseSelfhostAdminEmails("admin@example.com,not-an-email"),
+    ).toThrow("SELFHOST_ADMIN_EMAILS");
+    expect(() =>
+      parseSelfhostAdminEmails("admin@example.com,,other@example.com"),
+    ).toThrow("SELFHOST_ADMIN_EMAILS");
+  });
+
+  it("prefers the plural setting and falls back to the legacy singular setting", () => {
+    expect(
+      getSelfhostAdminEmails("new@example.com", "old@example.com"),
+    ).toEqual(["new@example.com"]);
+    expect(getSelfhostAdminEmails(undefined, "old@example.com")).toEqual([
+      "old@example.com",
+    ]);
+  });
 });

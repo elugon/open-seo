@@ -24,11 +24,10 @@ beforeEach(() => {
 describe("resolveSharedWorkspaceContext", () => {
   it("resolves owner only for the current configured admin email", async () => {
     await expect(
-      resolveSharedWorkspaceContext(
-        "admin-id",
-        "Admin@Example.com",
+      resolveSharedWorkspaceContext("admin-id", "Admin@Example.com", [
         " admin@example.com ",
-      ),
+        "second@example.com",
+      ]),
     ).resolves.toMatchObject({
       userEmail: "admin@example.com",
       role: "owner",
@@ -41,11 +40,10 @@ describe("resolveSharedWorkspaceContext", () => {
 
   it("demotes the previous admin when the configured email changes", async () => {
     await expect(
-      resolveSharedWorkspaceContext(
-        "previous-admin-id",
-        "admin@example.com",
+      resolveSharedWorkspaceContext("previous-admin-id", "admin@example.com", [
         "next-admin@example.com",
-      ),
+        "other@example.com",
+      ]),
     ).resolves.toMatchObject({ role: "member" });
     expect(ensureSharedWorkspaceMembership).toHaveBeenCalledWith(
       "previous-admin-id",

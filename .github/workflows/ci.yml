@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -16,6 +17,7 @@ permissions:
 
 jobs:
   ci:
+    if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
 
     steps:
@@ -48,6 +50,9 @@ jobs:
       - name: Run tests
         run: pnpm run test:ci
 
+      - name: Test self-host CI entry point
+        run: bash scripts/deploy-selfhost-ci.test.sh
+
       # Runs the leanWorkerBundle generateBundle assertion: fails if a
       # denylisted package (dataforseo-client, autumn-js, ...) re-enters the
       # worker's eager startup graph. See vite-plugin-lean-worker-bundle.ts.
@@ -75,6 +80,7 @@ jobs:
         run: pnpm --dir web run build
 
   docker-build:
+    if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
 
     steps:
@@ -98,6 +104,7 @@ jobs:
           cache-to: type=gha,mode=max
 
   standalone-image:
+    if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
 
     steps:
@@ -123,10 +130,14 @@ jobs:
   deploy-selfhost:
     needs: [ci, docker-build, standalone-image]
     if: >-
-      github.repository == 'elugon/open-seo' &&
-      github.event_name == 'push' &&
+      !cancelled() && github.repository == 'elugon/open-seo' &&
       github.ref == 'refs/heads/main' &&
-      vars.ENABLE_SELFHOST_DEPLOY == 'true'
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'push' &&
+        vars.ENABLE_SELFHOST_DEPLOY == 'true' &&
+        needs.ci.result == 'success' &&
+        needs.docker-build.result == 'success' &&
+        needs.standalone-image.result == 'success'))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment:
@@ -150,9 +161,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Deploy OpenSEO self-host to Cloudflare
-        run: bash scripts/deploy-selfhost-ci.sh
+      - name: Plan or deploy OpenSEO self-host
+        run: bash scripts/deploy-selfhost-ci.sh "$SELFHOST_OPERATION"
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           SELFHOST_ENV: ${{ secrets.SELFHOST_ENV }}
+          SELFHOST_ADMIN_EMAILS: ${{ secrets.SELFHOST_ADMIN_EMAILS }}
+          SELFHOST_OPERATION: ${{ github.event_name == 'workflow_dispatch' && 'plan' || 'deploy' }}

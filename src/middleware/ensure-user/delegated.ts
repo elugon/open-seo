@@ -85,17 +85,20 @@ async function resolveDelegatedContext(
 export async function resolveSharedWorkspaceContext(
   userId: string,
   userEmail: string,
-  adminEmail: string,
+  adminEmails: string[],
 ): Promise<EnsuredUserContext> {
   const normalizedEmail = normalizeEmailAddress(userEmail);
   const ensuredEmail = await ensureUserRecord(userId, normalizedEmail);
   const organizationId = await ensureSharedWorkspaceOrganization();
-  const role: "owner" | "member" =
-    normalizedEmail === normalizeEmailAddress(adminEmail) ? "owner" : "member";
+  const role: "owner" | "member" = adminEmails.some(
+    (adminEmail) => normalizedEmail === normalizeEmailAddress(adminEmail),
+  )
+    ? "owner"
+    : "member";
 
   // The verified request identity determines the role every time. In
   // particular, a previously configured admin is demoted when the operator
-  // changes SELFHOST_ADMIN_EMAIL; a database row never grants owner by itself.
+  // changes SELFHOST_ADMIN_EMAILS; a database row never grants owner by itself.
   await ensureSharedWorkspaceMembership(userId, role);
 
   return {

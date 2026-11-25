@@ -21,14 +21,14 @@ beforeEach(() => {
   Object.assign(workerEnv, {
     TEAM_DOMAIN: "https://team.cloudflareaccess.com",
     POLICY_AUD: "audience",
-    SELFHOST_ADMIN_EMAIL: "ELUGON10@GMAIL.COM ",
+    SELFHOST_ADMIN_EMAILS: "first@example.com, SECOND@EXAMPLE.COM ",
   });
   jwtVerify.mockResolvedValue({
-    payload: { sub: "user_1", email: " Elugon10@Gmail.com " },
+    payload: { sub: "user_1", email: " Second@Example.com " },
   });
   resolveSharedWorkspaceContext.mockResolvedValue({
     userId: "user_1",
-    userEmail: "elugon10@gmail.com",
+    userEmail: "second@example.com",
     emailVerified: true,
     organizationId: "shared-workspace",
     role: "owner",
@@ -36,19 +36,20 @@ beforeEach(() => {
 });
 
 describe("AUTH_MODE=cloudflare_access identity bootstrap", () => {
-  it("uses the verified normalized email to resolve the configured initial admin", async () => {
+  it("passes all normalized configured administrators to the shared resolver", async () => {
     await resolveCloudflareAccessContext(
       new Headers({ "cf-access-jwt-assertion": "verified-token" }),
     );
 
     expect(resolveSharedWorkspaceContext).toHaveBeenCalledWith(
       "user_1",
-      "elugon10@gmail.com",
-      "elugon10@gmail.com",
+      "second@example.com",
+      ["first@example.com", "second@example.com"],
     );
   });
 
   it("does not fall back to an owner when the configured admin is missing", async () => {
+    delete workerEnv.SELFHOST_ADMIN_EMAILS;
     delete workerEnv.SELFHOST_ADMIN_EMAIL;
 
     await expect(

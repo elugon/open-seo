@@ -10,7 +10,7 @@ import { Redacted } from "effect";
 import { unstable_readConfig } from "wrangler";
 import { z } from "zod";
 import {
-  isValidEmailAddress,
+  getSelfhostAdminEmails,
   normalizeEmailAddress,
 } from "../../src/shared/selfhost-checks.ts";
 import {
@@ -157,36 +157,50 @@ const optionalVar = (name: string) =>
 
 const validateCloudflareAccessAdminConfig = (authMode: string) =>
   Effect.gen(function* () {
-    if (authMode !== "cloudflare_access") return "";
+    if (authMode !== "cloudflare_access") return [] as string[];
 
-    const adminEmail = normalizeEmailAddress(
-      yield* optionalVar("SELFHOST_ADMIN_EMAIL"),
-    );
-    if (!isValidEmailAddress(adminEmail)) {
+    const adminEmailsValue = yield* optionalVar("SELFHOST_ADMIN_EMAILS");
+    const legacyAdminEmailValue = yield* optionalVar("SELFHOST_ADMIN_EMAIL");
+    let adminEmails: string[] | null;
+    try {
+      adminEmails = getSelfhostAdminEmails(
+        adminEmailsValue,
+        legacyAdminEmailValue,
+      );
+    } catch {
       return yield* Effect.die(
         new Error(
-          "Set SELFHOST_ADMIN_EMAIL to the initial administrator's email when AUTH_MODE=cloudflare_access.",
+          "SELFHOST_ADMIN_EMAILS must contain valid comma-separated administrator email addresses.",
+        ),
+      );
+    }
+    if (!adminEmails?.length) {
+      return yield* Effect.die(
+        new Error(
+          "Set SELFHOST_ADMIN_EMAILS to a comma-separated list of administrator emails when AUTH_MODE=cloudflare_access.",
         ),
       );
     }
 
     const teamDomain = yield* optionalVar("TEAM_DOMAIN");
     const policyAud = yield* optionalVar("POLICY_AUD");
-    if (teamDomain && policyAud) return adminEmail;
+    if (teamDomain && policyAud) return adminEmails;
 
     const allowedEmails = (yield* optionalVar("ACCESS_ALLOWED_EMAILS"))
       .split(",")
       .map(normalizeEmailAddress)
       .filter(Boolean);
-    if (!allowedEmails.includes(adminEmail)) {
+    if (
+      !adminEmails.every((adminEmail) => allowedEmails.includes(adminEmail))
+    ) {
       return yield* Effect.die(
         new Error(
-          "SELFHOST_ADMIN_EMAIL must also appear in ACCESS_ALLOWED_EMAILS for the managed Cloudflare Access application.",
+          "Every address in SELFHOST_ADMIN_EMAILS must also appear in ACCESS_ALLOWED_EMAILS for the managed Cloudflare Access application.",
         ),
       );
     }
 
-    return adminEmail;
+    return adminEmails;
   });
 
 /**
@@ -501,7 +515,7 @@ export default Alchemy.Stack(
     const authMode = yield* Config.string("AUTH_MODE").pipe(
       Config.withDefault("cloudflare_access"),
     );
-    const selfHostAdminEmail =
+    const selfHostAdminEmails =
       yield* validateCloudflareAccessAdminConfig(authMode);
     const databaseProvider = yield* optionalVar("DATABASE_PROVIDER");
     const hyperdriveId = prod ? yield* Config.string("HYPERDRIVE_ID") : "";
@@ -686,7 +700,7 @@ export default Alchemy.Stack(
         ...dataEnv,
         AUTH_MODE: authMode,
         ...(authMode === "cloudflare_access"
-          ? { SELFHOST_ADMIN_EMAIL: selfHostAdminEmail }
+          ? { SELFHOST_ADMIN_EMAILS: selfHostAdminEmails.join(",") }
           : {}),
         DATABASE_PROVIDER: databaseProvider || "d1",
         BETTER_AUTH_URL: authUrl,

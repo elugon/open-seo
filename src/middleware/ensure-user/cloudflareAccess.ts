@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
 import { AppError } from "@/server/lib/errors";
 import {
+  getSelfhostAdminEmails,
   isValidEmailAddress,
   normalizeEmailAddress,
   validateTeamDomain,
@@ -96,14 +97,23 @@ export async function resolveCloudflareAccessContext(
     typeof payload.email === "string"
       ? normalizeEmailAddress(payload.email)
       : null;
-  const adminEmail = env.SELFHOST_ADMIN_EMAIL
-    ? normalizeEmailAddress(env.SELFHOST_ADMIN_EMAIL)
-    : null;
-
-  if (!adminEmail || !isValidEmailAddress(adminEmail)) {
+  let adminEmails: string[] | null;
+  try {
+    adminEmails = getSelfhostAdminEmails(
+      env.SELFHOST_ADMIN_EMAILS,
+      env.SELFHOST_ADMIN_EMAIL,
+    );
+  } catch {
     throw new AppError(
       "AUTH_CONFIG_MISSING",
-      "Missing Cloudflare Access administrator configuration: set SELFHOST_ADMIN_EMAIL for this deployment.",
+      "SELFHOST_ADMIN_EMAILS must contain valid comma-separated administrator email addresses.",
+    );
+  }
+
+  if (!adminEmails?.length) {
+    throw new AppError(
+      "AUTH_CONFIG_MISSING",
+      "Missing Cloudflare Access administrator configuration: set SELFHOST_ADMIN_EMAILS for this deployment.",
     );
   }
 
@@ -111,5 +121,5 @@ export async function resolveCloudflareAccessContext(
     throw new AppError("UNAUTHENTICATED");
   }
 
-  return resolveSharedWorkspaceContext(userId, userEmail, adminEmail);
+  return resolveSharedWorkspaceContext(userId, userEmail, adminEmails);
 }

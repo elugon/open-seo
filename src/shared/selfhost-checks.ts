@@ -12,6 +12,29 @@ export function isValidEmailAddress(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmailAddress(value));
 }
 
+export function parseSelfhostAdminEmails(
+  value: string | null | undefined,
+): string[] | null {
+  if (value == null || value.trim() === "") return null;
+
+  const emails = value.split(",").map(normalizeEmailAddress);
+  if (emails.some((email) => !isValidEmailAddress(email))) {
+    throw new Error(
+      "SELFHOST_ADMIN_EMAILS must contain valid comma-separated email addresses.",
+    );
+  }
+
+  return [...new Set(emails)];
+}
+
+export function getSelfhostAdminEmails(
+  adminEmailsValue: string | null | undefined,
+  legacyAdminEmailValue: string | null | undefined,
+): string[] | null {
+  const preferredValue = adminEmailsValue?.trim();
+  return parseSelfhostAdminEmails(preferredValue || legacyAdminEmailValue);
+}
+
 type TeamDomainResult =
   | { ok: true; origin: string }
   | { ok: false; message: string };
