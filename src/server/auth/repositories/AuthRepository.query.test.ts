@@ -37,7 +37,8 @@ beforeAll(async () => {
       organization_id TEXT NOT NULL,
       user_id TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'member',
-      created_at INTEGER NOT NULL
+      created_at INTEGER NOT NULL,
+      UNIQUE (organization_id, user_id)
     );
   `);
 
@@ -177,5 +178,47 @@ describe("transferOwnership", () => {
 
     expect(await roleOf("owner")).toBe("owner");
     expect(await roleOf("outsider", "other_org")).toBe("owner");
+  });
+});
+
+describe("upsertSharedWorkspaceMember", () => {
+  it("updates an existing shared-workspace member to the role resolved for this request", async () => {
+    await insertMember({
+      organizationId: "shared-workspace",
+      userId: "access-user",
+      role: "owner",
+      createdAt: 1000,
+    });
+
+    await AuthRepository.upsertMembership({
+      organizationId: "shared-workspace",
+      userId: "access-user",
+      role: "member",
+    });
+
+    expect(
+      await AuthRepository.getMembership("access-user", "shared-workspace"),
+    ).toEqual({ role: "member" });
+  });
+
+  it("registers a verified Access user idempotently", async () => {
+    await AuthRepository.upsertMembership({
+      organizationId: "shared-workspace",
+      userId: "access-user",
+      role: "member",
+    });
+    await AuthRepository.upsertMembership({
+      organizationId: "shared-workspace",
+      userId: "access-user",
+      role: "owner",
+    });
+
+    expect(
+      await AuthRepository.getMembership("access-user", "shared-workspace"),
+    ).toEqual({ role: "owner" });
+    const rows = await client.execute(
+      "SELECT id FROM member WHERE organization_id = 'shared-workspace' AND user_id = 'access-user'",
+    );
+    expect(rows.rows).toHaveLength(1);
   });
 });

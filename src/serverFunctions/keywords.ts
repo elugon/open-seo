@@ -15,7 +15,10 @@ import {
 import { KeywordResearchService } from "@/server/features/keywords/services/KeywordResearchService";
 import { KeywordSuggestionService } from "@/server/features/keywords/services/KeywordSuggestionService";
 import { recordResearchStep } from "@/server/features/activation/researchActivation";
-import { requireProjectContext } from "@/serverFunctions/middleware";
+import {
+  requireProjectContext,
+  requireProjectReadContext,
+} from "@/serverFunctions/middleware";
 import { resolveMarket } from "@/shared/keyword-locations";
 
 function shouldUseKeywordE2eFixtures() {
@@ -58,7 +61,7 @@ export const saveKeywords = createServerFn({ method: "POST" })
   });
 
 export const getSavedKeywords = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectReadContext)
   .validator(getSavedKeywordsSchema)
   .handler(async ({ data, context }) => {
     return KeywordResearchService.getSavedKeywords({
@@ -68,7 +71,7 @@ export const getSavedKeywords = createServerFn({ method: "POST" })
   });
 
 export const exportSavedKeywords = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectReadContext)
   .validator(exportSavedKeywordsSchema)
   .handler(async ({ data, context }) => {
     return KeywordResearchService.exportSavedKeywords({
@@ -142,7 +145,7 @@ export const getSerpAnalysis = createServerFn({ method: "POST" })
 
 /** Searches worth running for the project: free, from saved topics and Search Console. */
 export const getKeywordSuggestions = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectReadContext)
   .validator(keywordSuggestionsSchema)
   .handler(({ context }) =>
     KeywordSuggestionService.getSuggestions(context.project),

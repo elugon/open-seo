@@ -42,6 +42,7 @@ import { Route as AppHelpOpenrouterApiKeyRouteImport } from './routes/_app/help/
 import { Route as AppPProjectIdRouteRouteImport } from './routes/_app/p/$projectId/route'
 import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings/index'
 import { Route as AppSettingsOrganizationRouteImport } from './routes/_app/settings/organization'
+import { Route as AppSettingsProjectAccessRouteImport } from './routes/_app/settings/project-access'
 import { Route as AuthenticatedOnboardingIndexRouteImport } from './routes/_authenticated.onboarding.index'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiAutumnSplatRouteImport } from './routes/api/autumn/$'
@@ -251,6 +252,12 @@ const AppSettingsOrganizationRoute = AppSettingsOrganizationRouteImport.update({
   path: '/organization',
   getParentRoute: () => AppSettingsRoute,
 } as any)
+const AppSettingsProjectAccessRoute =
+  AppSettingsProjectAccessRouteImport.update({
+    id: '/project-access',
+    path: '/project-access',
+    getParentRoute: () => AppSettingsRoute,
+  } as any)
 const AuthenticatedOnboardingIndexRoute =
   AuthenticatedOnboardingIndexRouteImport.update({
     id: '/onboarding/',
@@ -518,6 +525,7 @@ export interface FileRoutesByFullPath {
   '/help/dataforseo-api-key': typeof AppHelpDataforseoApiKeyRoute
   '/help/openrouter-api-key': typeof AppHelpOpenrouterApiKeyRoute
   '/settings/organization': typeof AppSettingsOrganizationRoute
+  '/settings/project-access': typeof AppSettingsProjectAccessRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/autumn/$': typeof ApiAutumnSplatRoute
   '/e/$token/$widget': typeof ETokenWidgetRoute
@@ -591,6 +599,7 @@ export interface FileRoutesByTo {
   '/help/dataforseo-api-key': typeof AppHelpDataforseoApiKeyRoute
   '/help/openrouter-api-key': typeof AppHelpOpenrouterApiKeyRoute
   '/settings/organization': typeof AppSettingsOrganizationRoute
+  '/settings/project-access': typeof AppSettingsProjectAccessRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/autumn/$': typeof ApiAutumnSplatRoute
   '/e/$token/$widget': typeof ETokenWidgetRoute
@@ -666,6 +675,7 @@ export interface FileRoutesById {
   '/_app/help/dataforseo-api-key': typeof AppHelpDataforseoApiKeyRoute
   '/_app/help/openrouter-api-key': typeof AppHelpOpenrouterApiKeyRoute
   '/_app/settings/organization': typeof AppSettingsOrganizationRoute
+  '/_app/settings/project-access': typeof AppSettingsProjectAccessRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/autumn/$': typeof ApiAutumnSplatRoute
   '/e/$token/$widget': typeof ETokenWidgetRoute
@@ -743,6 +753,7 @@ export interface FileRouteTypes {
     | '/help/dataforseo-api-key'
     | '/help/openrouter-api-key'
     | '/settings/organization'
+    | '/settings/project-access'
     | '/api/auth/$'
     | '/api/autumn/$'
     | '/e/$token/$widget'
@@ -816,6 +827,7 @@ export interface FileRouteTypes {
     | '/help/dataforseo-api-key'
     | '/help/openrouter-api-key'
     | '/settings/organization'
+    | '/settings/project-access'
     | '/api/auth/$'
     | '/api/autumn/$'
     | '/e/$token/$widget'
@@ -890,6 +902,7 @@ export interface FileRouteTypes {
     | '/_app/help/dataforseo-api-key'
     | '/_app/help/openrouter-api-key'
     | '/_app/settings/organization'
+    | '/_app/settings/project-access'
     | '/api/auth/$'
     | '/api/autumn/$'
     | '/e/$token/$widget'
@@ -1202,6 +1215,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsOrganizationRouteImport
       parentRoute: typeof AppSettingsRoute
     }
+    '/_app/settings/project-access': {
+      id: '/_app/settings/project-access'
+      path: '/project-access'
+      fullPath: '/settings/project-access'
+      preLoaderRoute: typeof AppSettingsProjectAccessRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
     '/_authenticated/onboarding/': {
       id: '/_authenticated/onboarding/'
       path: '/onboarding'
@@ -1508,11 +1528,13 @@ declare module '@tanstack/react-router' {
 
 interface AppSettingsRouteChildren {
   AppSettingsOrganizationRoute: typeof AppSettingsOrganizationRoute
+  AppSettingsProjectAccessRoute: typeof AppSettingsProjectAccessRoute
   AppSettingsIndexRoute: typeof AppSettingsIndexRoute
 }
 
 const AppSettingsRouteChildren: AppSettingsRouteChildren = {
   AppSettingsOrganizationRoute: AppSettingsOrganizationRoute,
+  AppSettingsProjectAccessRoute: AppSettingsProjectAccessRoute,
   AppSettingsIndexRoute: AppSettingsIndexRoute,
 }
 

@@ -2,13 +2,14 @@ import { createServerFn } from "@tanstack/react-start";
 import { waitUntil } from "cloudflare:workers";
 import { z } from "zod";
 import {
-  requireAuthenticatedContext,
+  requirePersonalContext,
   requireProjectContext,
+  requireProjectReadContext,
 } from "@/serverFunctions/middleware";
 import { AppError } from "@/server/lib/errors";
 import { captureServerEvent } from "@/server/lib/posthog";
 import { SamSessionRepository } from "@/server/features/sam/SamSessionRepository";
-import { ProjectRepository } from "@/server/features/projects/repositories/ProjectRepository";
+import { ProjectAccessService } from "@/server/features/projects/services/ProjectAccessService";
 
 // The ensure-user middleware authorizes `projectId` against the caller's org
 // (ADR 0001); requireProjectContext exposes the verified project.
@@ -16,7 +17,7 @@ const projectScopedSchema = z.object({ projectId: z.string().min(1) });
 
 // Lists the SAM chat sessions for a project (newest first) for the side-panel.
 export const listSamSessions = createServerFn({ method: "GET" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectReadContext)
   .validator(projectScopedSchema)
   .handler(async ({ context }) => {
     return SamSessionRepository.listSessionsForProject(
@@ -55,7 +56,7 @@ const archiveSchema = z.object({ sessionId: z.string().min(1) });
 // be opened, but the registry row and the DO's transcript are kept so a future
 // unarchive can restore it. There is no unarchive UI yet.
 export const archiveSamSession = createServerFn({ method: "POST" })
-  .middleware(requireAuthenticatedContext)
+  .middleware(requirePersonalContext)
   .validator(archiveSchema)
   .handler(async ({ data, context }) => {
     // Authorize against the session's project (the canonical project-access
@@ -65,9 +66,10 @@ export const archiveSamSession = createServerFn({ method: "POST" })
       context.userId,
     );
     const project = session
-      ? await ProjectRepository.getProjectForOrganization(
+      ? await ProjectAccessService.getProject(
+          context,
           session.projectId,
-          context.organizationId,
+          "collaborate",
         )
       : null;
     if (!session || !project) {

@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { resolveUserContextFromHeaders } from "@/middleware/ensure-user/resolve";
-import { ProjectRepository } from "@/server/features/projects/repositories/ProjectRepository";
+import { ProjectAccessService } from "@/server/features/projects/services/ProjectAccessService";
 import { GoogleMapsService } from "@/server/features/local-seo/services/GoogleMapsService";
 import { AppError } from "@/server/lib/errors";
 import { responseForAppError } from "@/server/lib/http-errors";
@@ -30,9 +30,10 @@ export const Route = createFileRoute("/api/local-seo/maps/$projectId/$z/$x/$y")(
             const context = await resolveUserContextFromHeaders(
               request.headers,
             );
-            const project = await ProjectRepository.getProjectForOrganization(
+            const project = await ProjectAccessService.getProject(
+              context,
               tile.projectId,
-              context.organizationId,
+              "read",
             );
             if (!project) throw new AppError("NOT_FOUND");
             return await GoogleMapsService.getTile(tile.z, tile.x, tile.y);

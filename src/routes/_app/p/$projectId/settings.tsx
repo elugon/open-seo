@@ -2,6 +2,8 @@ import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { ProjectPageHeader } from "@/client/features/projects/ProjectPageHeader";
 import { SettingsTabs } from "@/client/features/projects/SettingsTabs";
 import { pageHead } from "@/client/lib/pageHead";
+import { useCanManageProjects } from "@/client/features/team/organizationQueries";
+import { StatusScreen } from "@/client/components/StatusScreen";
 
 export const Route = createFileRoute("/_app/p/$projectId/settings")({
   head: () => pageHead("Project settings"),
@@ -10,6 +12,16 @@ export const Route = createFileRoute("/_app/p/$projectId/settings")({
 
 function ProjectSettingsLayout() {
   const { projectId } = Route.useParams();
+  const canManageProjects = useCanManageProjects();
+
+  if (!canManageProjects) {
+    return (
+      <StatusScreen
+        title="Project settings"
+        description="Only the OpenSEO administrator can manage project settings."
+      />
+    );
+  }
 
   return (
     <div className="h-full overflow-auto px-4 py-4 pb-24 md:px-6 md:py-6 md:pb-8">

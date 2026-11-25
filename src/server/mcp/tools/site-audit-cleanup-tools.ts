@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { requireOrgPermission } from "@/server/auth/org-gate";
+import { requireAuditRemovalPermission } from "@/server/features/audit/services/auditAccess";
 import { AuditService } from "@/server/features/audit/services/AuditService";
 import { buildProjectMeta } from "@/server/mcp/context";
 import { mcpResponse } from "@/server/mcp/formatters";
@@ -67,7 +67,7 @@ export const deleteSiteAuditTool = {
   config: {
     title: "Delete site audit",
     description:
-      "Permanently delete one site audit with its crawled pages, issues, and Lighthouse results, freeing audit capacity. A running audit is stopped first. Saved reports and project context are kept. Requires an owner or admin. Uses no credits. Call list_site_audits to find the auditId.",
+      "Permanently delete one site audit with its crawled pages, issues, and Lighthouse results, freeing audit capacity. A running audit is stopped first. Saved reports and project context are kept. Requires an owner or admin, or a project collaborator on Cloudflare Access. Uses no credits. Call list_site_audits to find the auditId.",
     inputSchema: deleteInputSchema,
     outputSchema: z.looseObject({
       auditId: z.string(),
@@ -82,7 +82,7 @@ export const deleteSiteAuditTool = {
   },
   handler: withMcpProjectAuth(
     async (args: z.infer<z.ZodObject<typeof deleteInputSchema>>, context) => {
-      requireOrgPermission(context.auth, { project: ["delete"] });
+      await requireAuditRemovalPermission(context.auth, args.projectId);
       await AuditService.remove(args.auditId, args.projectId);
       return mcpResponse({
         text: `Deleted site audit ${args.auditId}. Saved reports and project context are kept.`,

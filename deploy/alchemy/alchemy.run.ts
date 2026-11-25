@@ -10,6 +10,10 @@ import { Redacted } from "effect";
 import { unstable_readConfig } from "wrangler";
 import { z } from "zod";
 import {
+  isValidEmailAddress,
+  normalizeEmailAddress,
+} from "../../src/shared/selfhost-checks.ts";
+import {
   emailAccessGate,
   HOSTED_PROD_STAGE,
   readWorkersSubdomain,
@@ -150,6 +154,40 @@ const optionalVar = (name: string) =>
     Config.withDefault(""),
     Config.map((value) => value.trim()),
   );
+
+const validateCloudflareAccessAdminConfig = (authMode: string) =>
+  Effect.gen(function* () {
+    if (authMode !== "cloudflare_access") return "";
+
+    const adminEmail = normalizeEmailAddress(
+      yield* optionalVar("SELFHOST_ADMIN_EMAIL"),
+    );
+    if (!isValidEmailAddress(adminEmail)) {
+      return yield* Effect.die(
+        new Error(
+          "Set SELFHOST_ADMIN_EMAIL to the initial administrator's email when AUTH_MODE=cloudflare_access.",
+        ),
+      );
+    }
+
+    const teamDomain = yield* optionalVar("TEAM_DOMAIN");
+    const policyAud = yield* optionalVar("POLICY_AUD");
+    if (teamDomain && policyAud) return adminEmail;
+
+    const allowedEmails = (yield* optionalVar("ACCESS_ALLOWED_EMAILS"))
+      .split(",")
+      .map(normalizeEmailAddress)
+      .filter(Boolean);
+    if (!allowedEmails.includes(adminEmail)) {
+      return yield* Effect.die(
+        new Error(
+          "SELFHOST_ADMIN_EMAIL must also appear in ACCESS_ALLOWED_EMAILS for the managed Cloudflare Access application.",
+        ),
+      );
+    }
+
+    return adminEmail;
+  });
 
 /**
  * A self-host's own hostname (seo.example.com), in a zone on this account. The
@@ -463,6 +501,8 @@ export default Alchemy.Stack(
     const authMode = yield* Config.string("AUTH_MODE").pipe(
       Config.withDefault("cloudflare_access"),
     );
+    const selfHostAdminEmail =
+      yield* validateCloudflareAccessAdminConfig(authMode);
     const databaseProvider = yield* optionalVar("DATABASE_PROVIDER");
     const hyperdriveId = prod ? yield* Config.string("HYPERDRIVE_ID") : "";
     if (prod && (authMode !== "hosted" || databaseProvider !== "postgres")) {
@@ -645,6 +685,9 @@ export default Alchemy.Stack(
         ...resources,
         ...dataEnv,
         AUTH_MODE: authMode,
+        ...(authMode === "cloudflare_access"
+          ? { SELFHOST_ADMIN_EMAIL: selfHostAdminEmail }
+          : {}),
         DATABASE_PROVIDER: databaseProvider || "d1",
         BETTER_AUTH_URL: authUrl,
         BETTER_AUTH_SECRET: betterAuthSecret,

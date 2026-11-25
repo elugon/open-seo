@@ -7,6 +7,7 @@ import { makeToolContext } from "./tool-test-support";
 
 const mocks = vi.hoisted(() => ({
   getProjectForOrganization: vi.fn(),
+  getAssignedProject: vi.fn(),
   deleteReport: vi.fn(),
   removeSavedKeywords: vi.fn(),
   deleteTemplate: vi.fn(),
@@ -28,6 +29,12 @@ vi.mock("@/server/features/projects/services/ProjectService", () => ({
     getProjectForOrganization: mocks.getProjectForOrganization,
   },
 }));
+vi.mock(
+  "@/server/features/projects/repositories/ProjectAccessRepository",
+  () => ({
+    ProjectAccessRepository: { getAssignedProject: mocks.getAssignedProject },
+  }),
+);
 vi.mock(
   "@/server/features/keywords/repositories/KeywordResearchRepository",
   () => ({
@@ -138,6 +145,21 @@ describe("site audit cleanup", () => {
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
     expect(mocks.getAuditForProject).not.toHaveBeenCalled();
     expect(mocks.deleteAuditForProject).not.toHaveBeenCalled();
+  });
+
+  it("lets a Cloudflare Access collaborator remove an audit from an assigned project", async () => {
+    mocks.getAssignedProject.mockResolvedValue({
+      id: "project_1",
+      role: "collaborator",
+    });
+    await deleteSiteAuditTool.handler(
+      { projectId: "project_1", auditId: "audit_1" },
+      makeToolContext({ organizationId: "shared-workspace", role: "member" }),
+    );
+    expect(mocks.deleteAuditForProject).toHaveBeenCalledWith(
+      "audit_1",
+      "project_1",
+    );
   });
 
   it("stops a running workflow before deleting its results and scratchpad", async () => {

@@ -7,7 +7,7 @@ import { env as workerEnv } from "cloudflare:workers";
 import { everyApp } from "@every-app/sdk/server";
 import { serveEveryAppRequest } from "@/server/lib/gateway-attribution";
 import { resolveUserContextFromHeaders } from "@/middleware/ensure-user/resolve";
-import { ProjectRepository } from "@/server/features/projects/repositories/ProjectRepository";
+import { ProjectAccessService } from "@/server/features/projects/services/ProjectAccessService";
 import { SamSessionRepository } from "@/server/features/sam/SamSessionRepository";
 import { runScheduledRankChecks } from "@/server/features/rank-tracking/services/scheduledRankChecks";
 import { reconcileStaleAudits } from "@/server/features/audit/services/auditReconciler";
@@ -25,6 +25,7 @@ import {
 import { requestWithPublicOrigin } from "@/server/mcp/public-origin";
 import { MCP_ROUTE } from "@/server/mcp/context";
 import { withPgClient } from "@/db";
+import { asAppError } from "@/server/lib/errors";
 import { ENFORCED_CSP, reportOnlyCsp } from "@/server/lib/csp";
 import { withDataforseoSlots } from "@/server/lib/dataforseo/request-slots";
 import {
@@ -113,12 +114,21 @@ async function authorizeSamChat(
     sessionId,
     context.userId,
   );
-  const project = session
-    ? await ProjectRepository.getProjectForOrganization(
+  let project = null;
+  if (session) {
+    try {
+      project = await ProjectAccessService.getProject(
+        context,
         session.projectId,
-        context.organizationId,
-      )
-    : null;
+        "collaborate",
+      );
+    } catch (error) {
+      if (asAppError(error)?.code === "FORBIDDEN") {
+        return new Response("Forbidden", { status: 403 });
+      }
+      throw error;
+    }
+  }
   if (!session || !project) {
     return new Response("Forbidden", { status: 403 });
   }

@@ -4,10 +4,18 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { requireOrgPermission } from "@/server/auth/org-gate";
 import { ProjectService } from "@/server/features/projects/services/ProjectService";
+import { mapProject } from "@/server/features/projects/services/projects";
+import {
+  isProjectRestricted,
+  ProjectAccessService,
+} from "@/server/features/projects/services/ProjectAccessService";
 import { captureMetaSetupStep, MetaSetupEvent } from "@/server/referrals/meta";
 import {
   requireAuthenticatedContext,
+  requirePersonalContext,
+  requireProjectAdminContext,
   requireProjectContext,
+  requireProjectReadContext,
 } from "@/serverFunctions/middleware";
 import {
   archiveProjectSchema,
@@ -21,9 +29,11 @@ import { z } from "zod";
 const projectScopedSchema = z.object({ projectId: z.string().min(1) });
 
 export const getProjects = createServerFn({ method: "POST" })
-  .middleware(requireAuthenticatedContext)
+  .middleware(requirePersonalContext)
   .handler(async ({ context }) =>
-    ProjectService.listProjectsEnsuringOne(context.organizationId),
+    isProjectRestricted(context)
+      ? ProjectAccessService.listProjects(context)
+      : ProjectService.listProjectsEnsuringOne(context.organizationId),
   );
 
 export const createProject = createServerFn({ method: "POST" })
@@ -51,7 +61,7 @@ export const createProject = createServerFn({ method: "POST" })
   });
 
 export const updateProject = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectAdminContext)
   .validator(updateProjectSchema)
   .handler(async ({ data, context }) => {
     const project = await ProjectService.updateProject(
@@ -81,7 +91,7 @@ export const updateProject = createServerFn({ method: "POST" })
 // and the wizard moves on at once. start() skips projects that already have an
 // audit and logs its own failures.
 export const saveOnboardingWebsite = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectAdminContext)
   .validator(setProjectWebsiteSchema)
   .handler(async ({ data, context }) => {
     const project = await ProjectService.updateProject(context.organizationId, {
@@ -134,11 +144,9 @@ export const deleteArchivedProject = createServerFn({ method: "POST" })
   });
 
 export const getProjectAccess = createServerFn({ method: "POST" })
-  .middleware(requireAuthenticatedContext)
+  .middleware(requireProjectReadContext)
   .validator(projectScopedSchema)
-  .handler(async ({ data, context }) => {
-    return ProjectService.getProjectForOrganization(
-      context.organizationId,
-      data.projectId,
-    );
-  });
+  .handler(({ context }) => ({
+    ...mapProject(context.project),
+    accessRole: context.projectAccessRole ?? "admin",
+  }));

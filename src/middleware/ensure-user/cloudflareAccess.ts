@@ -1,7 +1,11 @@
 import { env } from "cloudflare:workers";
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
 import { AppError } from "@/server/lib/errors";
-import { validateTeamDomain } from "@/shared/selfhost-checks";
+import {
+  isValidEmailAddress,
+  normalizeEmailAddress,
+  validateTeamDomain,
+} from "@/shared/selfhost-checks";
 import { classifyAccessVerificationError } from "./accessTokenErrors";
 import { resolveSharedWorkspaceContext } from "./delegated";
 import type { EnsuredUserContext } from "./types";
@@ -88,11 +92,24 @@ export async function resolveCloudflareAccessContext(
   }
 
   const userId = typeof payload.sub === "string" ? payload.sub : null;
-  const userEmail = typeof payload.email === "string" ? payload.email : null;
+  const userEmail =
+    typeof payload.email === "string"
+      ? normalizeEmailAddress(payload.email)
+      : null;
+  const adminEmail = env.SELFHOST_ADMIN_EMAIL
+    ? normalizeEmailAddress(env.SELFHOST_ADMIN_EMAIL)
+    : null;
 
-  if (!userId || !userEmail) {
+  if (!adminEmail || !isValidEmailAddress(adminEmail)) {
+    throw new AppError(
+      "AUTH_CONFIG_MISSING",
+      "Missing Cloudflare Access administrator configuration: set SELFHOST_ADMIN_EMAIL for this deployment.",
+    );
+  }
+
+  if (!userId || !userEmail || !isValidEmailAddress(userEmail)) {
     throw new AppError("UNAUTHENTICATED");
   }
 
-  return resolveSharedWorkspaceContext(userId, userEmail);
+  return resolveSharedWorkspaceContext(userId, userEmail, adminEmail);
 }

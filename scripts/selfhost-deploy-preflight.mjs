@@ -63,6 +63,25 @@ if (!AUTH_MODES.includes(authMode)) {
 // needs ACCESS_ALLOWED_EMAILS or the access:write login scope.
 const managedAccess =
   authMode === "cloudflare_access" && !(env.TEAM_DOMAIN && env.POLICY_AUD);
+if (authMode === "cloudflare_access") {
+  const adminEmail = env.SELFHOST_ADMIN_EMAIL?.trim().toLowerCase();
+  if (!adminEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(adminEmail)) {
+    fail(
+      `${em("SELFHOST_ADMIN_EMAIL")} must be a valid email in ${envFile} when AUTH_MODE=cloudflare_access.`,
+    );
+  }
+  if (managedAccess) {
+    const allowedEmails = (env.ACCESS_ALLOWED_EMAILS || "")
+      .split(",")
+      .map((email) => email.trim().toLowerCase())
+      .filter(Boolean);
+    if (!allowedEmails.includes(adminEmail)) {
+      fail(
+        `${em("SELFHOST_ADMIN_EMAIL")} must also appear in ${em("ACCESS_ALLOWED_EMAILS")} for the managed Cloudflare Access application.`,
+      );
+    }
+  }
+}
 if (managedAccess && !env.ACCESS_ALLOWED_EMAILS) {
   fail(
     `${em("ACCESS_ALLOWED_EMAILS")} is not set in ${envFile} — list who may sign in through`,

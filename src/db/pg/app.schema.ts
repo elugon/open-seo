@@ -11,8 +11,9 @@ import {
   text,
   uniqueIndex,
   primaryKey,
+  check,
 } from "drizzle-orm/pg-core";
-import { organization, user } from "./better-auth-schema";
+import { member, organization, user } from "./better-auth-schema";
 
 // Timestamps are stored as *text* (same column shape as the SQLite schema).
 // Postgres `timestamptz` would be parsed back into a JS Date by postgres-js
@@ -172,6 +173,31 @@ export const projects = pgTable(
     // list queries seq-scan. Per-org row counts are small, so the archived/
     // created_at ordering sorts cheaply on top of this single-column lookup.
     index("projects_organization_id_idx").on(table.organizationId),
+  ],
+);
+
+// Explicit project participation for members of the shared Cloudflare Access
+// workspace. Rows are scoped through live member and project records by the
+// shared repository; the composite key prevents duplicate grants.
+export const projectAccessAssignments = pgTable(
+  "project_access_assignments",
+  {
+    memberId: text("member_id")
+      .notNull()
+      .references(() => member.id, { onDelete: "cascade" }),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    role: text("role", { enum: ["viewer", "collaborator"] }).notNull(),
+    createdAt: timestampColumn("created_at").notNull().default(isoNow),
+  },
+  (table) => [
+    primaryKey({ columns: [table.memberId, table.projectId] }),
+    check(
+      "project_access_assignments_role_check",
+      sql`${table.role} in ('viewer', 'collaborator')`,
+    ),
+    index("project_access_assignments_project_idx").on(table.projectId),
   ],
 );
 

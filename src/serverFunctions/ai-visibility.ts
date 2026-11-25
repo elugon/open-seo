@@ -2,7 +2,10 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { getPublicOrigin } from "@/server/mcp/public-origin";
 import { AiVisibilityService } from "@/server/features/ai-visibility/services/AiVisibilityService";
-import { requireProjectContext } from "@/serverFunctions/middleware";
+import {
+  requireProjectContext,
+  requireProjectReadContext,
+} from "@/serverFunctions/middleware";
 import { generateAiPromptsSchema } from "@/types/schemas/aiPromptSuggestions";
 import {
   researchAiPromptsSchema,
@@ -43,7 +46,7 @@ export const researchAiVisibilityPrompts = createServerFn({ method: "POST" })
   );
 
 export const getAiResearchSetup = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectReadContext)
   .validator(aiProjectSchema)
   .handler(({ context }) =>
     AiVisibilityService.getResearchSetup({ projectId: context.projectId }),
@@ -61,7 +64,7 @@ export const startAiResearchSetup = createServerFn({ method: "POST" })
   );
 
 export const listAiResearchKeywords = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectReadContext)
   .validator(aiProjectSchema)
   .handler(({ context }) =>
     AiVisibilityService.listResearchKeywords({ projectId: context.projectId }),
@@ -78,7 +81,7 @@ export const updateAiResearchKeywords = createServerFn({ method: "POST" })
   );
 
 export const getAiVisibilityTracker = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectReadContext)
   .validator(aiProjectSchema)
   .handler(({ context }) =>
     AiVisibilityService.getTracker({ projectId: context.projectId }),
@@ -92,7 +95,7 @@ export const saveAiVisibilityTracker = createServerFn({ method: "POST" })
   );
 
 export const estimateAiVisibilityCost = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectReadContext)
   .validator(estimateAiCostSchema)
   .handler(({ data, context }) =>
     AiVisibilityService.estimateCost({ ...data, projectId: context.projectId }),
@@ -119,14 +122,14 @@ export const runAiVisibilityCheck = createServerFn({ method: "POST" })
   );
 
 export const getAiVisibilityRun = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectReadContext)
   .validator(getAiRunSchema)
   .handler(({ data, context }) =>
     AiVisibilityService.getRun({ ...data, projectId: context.projectId }),
   );
 
 export const getAiVisibilityResults = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectReadContext)
   .validator(aiPageResultsSchema)
   .handler(({ data, context }) =>
     AiVisibilityService.getPageResults({
@@ -136,28 +139,28 @@ export const getAiVisibilityResults = createServerFn({ method: "POST" })
   );
 
 export const getAiVisibilitySources = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectReadContext)
   .validator(aiSourcesSchema)
   .handler(({ data, context }) =>
     AiVisibilityService.getSources({ ...data, projectId: context.projectId }),
   );
 
 export const getAiVisibilityTrend = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectReadContext)
   .validator(aiTrendSchema)
   .handler(({ data, context }) =>
     AiVisibilityService.getTrend({ ...data, projectId: context.projectId }),
   );
 
 export const getAiVisibilityAnswer = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectReadContext)
   .validator(aiAnswerSchema)
   .handler(({ data, context }) =>
     AiVisibilityService.getAnswer({ ...data, projectId: context.projectId }),
   );
 
 export const exportAiVisibilityData = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectReadContext)
   .validator(aiExportSchema)
   .handler(({ data, context }) =>
     AiVisibilityService.exportData(

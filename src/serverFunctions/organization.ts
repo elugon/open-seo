@@ -13,7 +13,10 @@ import { AuthRepository } from "@/server/auth/repositories/AuthRepository";
 import { sendHostedInvitationEmail } from "@/server/email/loops";
 import { ProjectService } from "@/server/features/projects/services/ProjectService";
 import { AppError } from "@/server/lib/errors";
-import { requireAuthenticatedContext } from "@/serverFunctions/middleware";
+import {
+  requireAuthenticatedContext,
+  requirePersonalContext,
+} from "@/serverFunctions/middleware";
 
 /** Teams, invitations and ownership live on the Every App gateway. */
 function refuseBehindEveryAppGateway() {
@@ -31,7 +34,7 @@ function refuseBehindEveryAppGateway() {
 // role, member rows are never listed or trusted, and the team functions below
 // refuse (the UI that calls them is hosted-only).
 export const getOrganizationContext = createServerFn({ method: "GET" })
-  .middleware(requireAuthenticatedContext)
+  .middleware(requirePersonalContext)
   .handler(async ({ context }) => {
     if (isEveryAppAuthMode(env.AUTH_MODE)) {
       const organizationName = "Organization";

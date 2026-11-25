@@ -4,11 +4,13 @@ import { sharesEnabled } from "@/server/features/reports/shareAccess";
 import { buildProjectMeta } from "@/server/mcp/context";
 import { mcpResponse } from "@/server/mcp/formatters";
 import { optionalMetaOutputSchema } from "@/server/mcp/output-schemas";
+import { requireMcpWorkspaceAdmin } from "@/server/mcp/project-access";
 import { withMcpProjectAuth } from "@/server/mcp/project-auth";
 import { projectIdSchema } from "@/server/mcp/schemas";
 import { buildDashboardUrl } from "@/server/mcp/urls";
 import { sharePath } from "@/shared/report-share";
 import type { ReportMetadata } from "@/types/schemas/reports";
+import type { ToolContext } from "@/server/mcp/context";
 
 export async function reportShareUrl(report: ReportMetadata, baseUrl: string) {
   return report.shareToken && (await sharesEnabled())
@@ -51,34 +53,43 @@ export const setReportSharingTool = {
       destructiveHint: true,
     },
   },
-  handler: withMcpProjectAuth(
-    async (args: z.infer<z.ZodObject<typeof sharingInputSchema>>, context) => {
-      const params = {
-        projectId: args.projectId,
-        reportId: args.reportId,
-        userId: context.auth.userId,
-        organizationId: context.auth.organizationId,
-        source: "mcp" as const,
-      };
-      const report = args.public
-        ? await ReportService.shareReport(params)
-        : await ReportService.unshareReport(params);
-      const path = `/p/${args.projectId}/reports/${report.id}`;
-      const url = buildDashboardUrl(context.baseUrl, path);
-      const shareUrl = await reportShareUrl(report, context.baseUrl);
+  handler: async (
+    args: z.infer<z.ZodObject<typeof sharingInputSchema>>,
+    toolContext: ToolContext,
+  ) => {
+    requireMcpWorkspaceAdmin(toolContext.auth);
+    return withMcpProjectAuth(
+      async (
+        authorizedArgs: z.infer<z.ZodObject<typeof sharingInputSchema>>,
+        context,
+      ) => {
+        const params = {
+          projectId: authorizedArgs.projectId,
+          reportId: authorizedArgs.reportId,
+          userId: context.auth.userId,
+          organizationId: context.auth.organizationId,
+          source: "mcp" as const,
+        };
+        const report = authorizedArgs.public
+          ? await ReportService.shareReport(params)
+          : await ReportService.unshareReport(params);
+        const path = `/p/${authorizedArgs.projectId}/reports/${report.id}`;
+        const url = buildDashboardUrl(context.baseUrl, path);
+        const shareUrl = await reportShareUrl(report, context.baseUrl);
 
-      return mcpResponse({
-        text: shareUrl
-          ? `Public sharing enabled. Anyone with this link can read the latest saved report without an account: ${shareUrl}`
-          : `Public sharing disabled. The report is private. Open it at ${url}.`,
-        meta: buildProjectMeta(context, args.projectId, path),
-        structuredContent: {
-          reportId: report.id,
-          public: shareUrl !== null,
-          url,
-          shareUrl,
-        },
-      });
-    },
-  ),
+        return mcpResponse({
+          text: shareUrl
+            ? `Public sharing enabled. Anyone with this link can read the latest saved report without an account: ${shareUrl}`
+            : `Public sharing disabled. The report is private. Open it at ${url}.`,
+          meta: buildProjectMeta(context, authorizedArgs.projectId, path),
+          structuredContent: {
+            reportId: report.id,
+            public: shareUrl !== null,
+            url,
+            shareUrl,
+          },
+        });
+      },
+    )(args, toolContext);
+  },
 };

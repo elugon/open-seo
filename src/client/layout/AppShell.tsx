@@ -12,6 +12,7 @@ import { Sidebar } from "@/client/components/Sidebar";
 import { BILLING_ROUTE } from "@/shared/billing";
 import { getSeoApiKeyStatus } from "@/serverFunctions/config";
 import { getLastProjectId } from "@/client/lib/active-project";
+import { getClientAuthMode } from "@/lib/auth-mode";
 import { dataforseoHelpLinkOptions } from "@/client/navigation/items";
 import {
   SidebarInset,
@@ -42,9 +43,10 @@ export function AuthenticatedAppLayout({
   // flashing only the always-visible Connect group while projects load. It is
   // read on every render, not once: the shell stays mounted across project
   // pages, which update the remembered project as the user moves between them.
+  const selfHostedWithAccess = getClientAuthMode() === "cloudflare_access";
   const projectsQuery = useQuery({
     ...projectsQueryOptions(),
-    enabled: ready && !projectId,
+    enabled: ready && (selfHostedWithAccess || !projectId),
   });
   const rememberedProjectId = getLastProjectId();
   const fallbackProjects = projectsQuery.data ?? [];
@@ -57,8 +59,10 @@ export function AuthenticatedAppLayout({
   // (remembered-if-valid, else most recent). Before it loads, fall back to the
   // remembered id so the project nav renders immediately; a stale id here only
   // builds links that self-correct via the route guard once data arrives.
-  const sidebarProjectId =
-    projectId ?? fallbackProjectId ?? rememberedProjectId;
+  const sidebarProjectId = selfHostedWithAccess
+    ? (fallbackProjects.find((project) => project.id === projectId)?.id ??
+      fallbackProjectId)
+    : (projectId ?? fallbackProjectId ?? rememberedProjectId);
   // No project to show yet, but the list that may name one is still loading
   // (a first visit to a page without a project in the URL).
   const sidebarProjectPending =

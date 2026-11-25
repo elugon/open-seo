@@ -4,6 +4,14 @@
 
 export const MIN_BETTER_AUTH_SECRET_LENGTH = 32;
 
+export function normalizeEmailAddress(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+export function isValidEmailAddress(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmailAddress(value));
+}
+
 type TeamDomainResult =
   | { ok: true; origin: string }
   | { ok: false; message: string };

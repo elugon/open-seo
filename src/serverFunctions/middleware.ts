@@ -4,6 +4,7 @@ import { AppError } from "@/server/lib/errors";
 import { errorHandlingMiddleware } from "@/middleware/errorHandling";
 import type { EnsuredUserContext } from "@/middleware/ensure-user/types";
 import { ensureUserMiddleware } from "@/middleware/ensureUser";
+import { isProjectRestricted } from "@/server/features/projects/services/ProjectAccessService";
 
 const ensuredUserContextSchema: z.ZodType<EnsuredUserContext> = z.object({
   userId: z.string(),
@@ -12,6 +13,7 @@ const ensuredUserContextSchema: z.ZodType<EnsuredUserContext> = z.object({
   organizationId: z.string(),
   role: z.string(),
   project: z.any().optional(),
+  projectAccessRole: z.enum(["viewer", "collaborator", "admin"]).optional(),
 });
 
 function getAuthenticatedContext(context: unknown): EnsuredUserContext {
@@ -30,7 +32,7 @@ export const globalServerFunctionMiddleware = [
   ensureUserMiddleware,
 ] as const;
 
-export const requireAuthenticatedContext = [
+export const requirePersonalContext = [
   createMiddleware({ type: "function" }).server(async ({ next, context }) => {
     const authenticatedContext = getAuthenticatedContext(context);
 
@@ -40,23 +42,56 @@ export const requireAuthenticatedContext = [
   }),
 ] as const;
 
-export const requireProjectContext = [
+// Organization-wide functions must opt in to a narrower context before they
+// can be called by a project-scoped Cloudflare Access user.
+export const requireAuthenticatedContext = [
   createMiddleware({ type: "function" }).server(async ({ next, context }) => {
     const authenticatedContext = getAuthenticatedContext(context);
-
-    if (!authenticatedContext.project) {
-      throw new AppError(
-        "INTERNAL_ERROR",
-        "Project context missing from authenticated server function",
-      );
+    if (isProjectRestricted(authenticatedContext)) {
+      throw new AppError("FORBIDDEN");
     }
-
-    return next({
-      context: {
-        ...authenticatedContext,
-        project: authenticatedContext.project,
-        projectId: authenticatedContext.project.id,
-      },
-    });
+    return next({ context: authenticatedContext });
   }),
+] as const;
+
+function requireProject(permission: "read" | "collaborate") {
+  return createMiddleware({ type: "function" }).server(
+    async ({ next, context }) => {
+      const authenticatedContext = getAuthenticatedContext(context);
+      if (isProjectRestricted(authenticatedContext)) {
+        const { projectAccessRole } = authenticatedContext;
+        if (!authenticatedContext.project || !projectAccessRole) {
+          throw new AppError("NOT_FOUND");
+        }
+        if (
+          permission === "collaborate" &&
+          projectAccessRole !== "collaborator"
+        ) {
+          throw new AppError("FORBIDDEN");
+        }
+      }
+
+      if (!authenticatedContext.project) {
+        throw new AppError(
+          "INTERNAL_ERROR",
+          "Project context missing from authenticated server function",
+        );
+      }
+
+      return next({
+        context: {
+          ...authenticatedContext,
+          project: authenticatedContext.project,
+          projectId: authenticatedContext.project.id,
+        },
+      });
+    },
+  );
+}
+
+export const requireProjectReadContext = [requireProject("read")] as const;
+export const requireProjectContext = [requireProject("collaborate")] as const;
+export const requireProjectAdminContext = [
+  ...requireAuthenticatedContext,
+  ...requireProjectContext,
 ] as const;

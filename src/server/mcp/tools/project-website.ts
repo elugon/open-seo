@@ -6,7 +6,9 @@ import {
   looseObjectOutputSchema,
   optionalMetaOutputSchema,
 } from "@/server/mcp/output-schemas";
+import { requireMcpWorkspaceAdmin } from "@/server/mcp/project-access";
 import { withMcpProjectAuth } from "@/server/mcp/project-auth";
+import type { ToolContext } from "@/server/mcp/context";
 import {
   researchProjectWebsiteSchema,
   saveProjectWebsiteSetupSchema,
@@ -75,26 +77,39 @@ export const saveProjectWebsiteSetupTool = {
       destructiveHint: true,
     },
   },
-  handler: withMcpProjectAuth(
-    async (args: z.infer<typeof saveProjectWebsiteSetupSchema>, context) => {
-      const { project, seededTracking, keywordsIgnored } =
-        await ProjectWebsiteService.save(args, context.billing, "mcp");
-      const warning = keywordsIgnored
-        ? "The project already has Prompt Research keywords, so the suggested topics and keywords were not added to them. To change the saved keywords, use update_ai_research_keywords."
-        : null;
-      return mcpResponse({
-        text:
-          (seededTracking
-            ? "Saved reviewed website setup to project context. Weekly AI tracking now covers the first three suggested topics on ChatGPT, and its first paid check runs in about a week. Tell the user; set_ai_visibility_schedule pauses it if they don't want it."
-            : "Saved reviewed website setup to project context.") +
-          (warning ? `\nWarning: ${warning}` : ""),
-        structuredContent: { project, ...(warning ? { warning } : {}) },
-        meta: buildProjectMeta(
-          context,
-          args.projectId,
-          `/p/${args.projectId}/context`,
-        ),
-      });
-    },
-  ),
+  handler: async (
+    args: z.infer<typeof saveProjectWebsiteSetupSchema>,
+    toolContext: ToolContext,
+  ) => {
+    requireMcpWorkspaceAdmin(toolContext.auth);
+    return withMcpProjectAuth(
+      async (
+        authorizedArgs: z.infer<typeof saveProjectWebsiteSetupSchema>,
+        context,
+      ) => {
+        const { project, seededTracking, keywordsIgnored } =
+          await ProjectWebsiteService.save(
+            authorizedArgs,
+            context.billing,
+            "mcp",
+          );
+        const warning = keywordsIgnored
+          ? "The project already has Prompt Research keywords, so the suggested topics and keywords were not added to them. To change the saved keywords, use update_ai_research_keywords."
+          : null;
+        return mcpResponse({
+          text:
+            (seededTracking
+              ? "Saved reviewed website setup to project context. Weekly AI tracking now covers the first three suggested topics on ChatGPT, and its first paid check runs in about a week. Tell the user; set_ai_visibility_schedule pauses it if they don't want it."
+              : "Saved reviewed website setup to project context.") +
+            (warning ? `\nWarning: ${warning}` : ""),
+          structuredContent: { project, ...(warning ? { warning } : {}) },
+          meta: buildProjectMeta(
+            context,
+            authorizedArgs.projectId,
+            `/p/${authorizedArgs.projectId}/context`,
+          ),
+        });
+      },
+    )(args, toolContext);
+  },
 };

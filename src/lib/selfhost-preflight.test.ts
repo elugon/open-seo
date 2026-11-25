@@ -29,6 +29,31 @@ describe("runSelfhostPreflight", () => {
     );
   });
 
+  it("requires a valid administrator email in Cloudflare Access mode", () => {
+    const result = runSelfhostPreflight({
+      AUTH_MODE: "cloudflare_access",
+      TEAM_DOMAIN: "https://team.cloudflareaccess.com",
+      POLICY_AUD: "audience",
+      DATAFORSEO_API_KEY: btoa("user@example.com:secret"),
+    });
+
+    expect(result.failed).toBe(true);
+    expect(itemFor(result, "SELFHOST_ADMIN_EMAIL")?.level).toBe("fail");
+  });
+
+  it("accepts a valid configured administrator in Cloudflare Access mode", () => {
+    const result = runSelfhostPreflight({
+      AUTH_MODE: "cloudflare_access",
+      TEAM_DOMAIN: "https://team.cloudflareaccess.com",
+      POLICY_AUD: "audience",
+      SELFHOST_ADMIN_EMAIL: " Admin@Example.com ",
+      DATAFORSEO_API_KEY: btoa("user@example.com:secret"),
+    });
+
+    expect(result.failed).toBe(false);
+    expect(itemFor(result, "AUTH_MODE")?.level).toBe("ok");
+  });
+
   it.each([
     [{}, ["TEAM_DOMAIN and POLICY_AUD", "AUTH_MODE is unset"]],
     [
