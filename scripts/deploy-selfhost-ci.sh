@@ -30,7 +30,7 @@ set +C
 trap 'rm -f .env.selfhost' EXIT
 unset SELFHOST_ENV
 
-node --experimental-strip-types --input-type=module - "$domain" <<'NODE'
+node --experimental-strip-types --input-type=module - "$domain" "$operation" <<'NODE'
 import { appendFileSync, readFileSync } from 'node:fs';
 import { parseEnv } from 'node:util';
 import { getSelfhostAdminEmails, normalizeEmailAddress, parseSelfhostAdminEmails } from './src/shared/selfhost-checks.ts';
@@ -63,14 +63,35 @@ if (!(config.TEAM_DOMAIN && config.POLICY_AUD)) {
     throw new Error('Every administrator must appear in ACCESS_ALLOWED_EMAILS for the managed Cloudflare Access application.');
   }
 }
-for (const name of ['CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN', 'ALCHEMY_PROFILE']) {
+for (const name of ['CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN', 'ALCHEMY_PROFILE', 'SELFHOST_OPENROUTER_API_KEY']) {
   if (Object.hasOwn(config, name)) throw new Error(`Configure ${name} outside SELFHOST_ENV.`);
 }
 if (configuredAdmins && config.SELFHOST_ADMIN_EMAILS === undefined) {
   appendFileSync('.env.selfhost', `\nSELFHOST_ADMIN_EMAILS=${JSON.stringify(adminEmails.join(','))}\n`);
 }
+const openRouterKey = process.env.SELFHOST_OPENROUTER_API_KEY?.trim();
+if (openRouterKey) {
+  if (!/^sk-or-v1-[A-Za-z0-9_-]+$/.test(openRouterKey)) {
+    throw new Error('Set OPENROUTER_API_KEY to a valid OpenRouter key in selfhost-production.');
+  }
+  const baseUrl = config.OPENROUTER_BASE_URL?.trim().replace(/\/+$/, '');
+  if (baseUrl && baseUrl !== 'https://openrouter.ai/api/v1') {
+    throw new Error('The separate OpenRouter key requires the default OpenRouter base URL.');
+  }
+  if (process.argv[3] === 'plan') {
+    const keyStatus = await fetch('https://openrouter.ai/api/v1/key', {
+      headers: { Authorization: `Bearer ${openRouterKey}` },
+      redirect: 'error',
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!keyStatus.ok) throw new Error(`OpenRouter key check failed (HTTP ${keyStatus.status}).`);
+    await keyStatus.body?.cancel();
+    console.log('OpenRouter accepted the configured API key.');
+  }
+  appendFileSync('.env.selfhost', `\nSELFHOST_OPENROUTER_API_KEY=${openRouterKey}\n`);
+}
 NODE
-unset SELFHOST_ADMIN_EMAILS
+unset SELFHOST_ADMIN_EMAILS SELFHOST_OPENROUTER_API_KEY
 
 curl --fail --silent --show-error --max-time 20 \
   --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \

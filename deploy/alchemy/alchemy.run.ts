@@ -227,6 +227,15 @@ const optionalSecret = (name: string) =>
     Config.map((value) => Redacted.make(Redacted.value(value).trim())),
   );
 
+const openRouterKey = (stage: string) =>
+  Effect.gen(function* () {
+    if (stage === "selfhost") {
+      const key = yield* optionalSecret("SELFHOST_OPENROUTER_API_KEY");
+      if (Redacted.value(key)) return key;
+    }
+    return yield* optionalSecret("OPENROUTER_API_KEY");
+  });
+
 const accessScopeHint =
   " (if this is a permissions error, re-run `pnpm alchemy login deploy/alchemy/alchemy.run.ts --configure`, answer yes to “Customize OAuth scopes?”, and select access:write alongside the defaults)";
 
@@ -432,7 +441,6 @@ const dataEnv = {
   // Sign in with ChatGPT (hosted only). Unset = no button.
   OPENAI_SIWC_CLIENT_ID: optionalVar("OPENAI_SIWC_CLIENT_ID"),
   OPENAI_SIWC_CLIENT_SECRET: optionalSecret("OPENAI_SIWC_CLIENT_SECRET"),
-  OPENROUTER_API_KEY: optionalSecret("OPENROUTER_API_KEY"),
   OPENROUTER_BASE_URL: optionalVar("OPENROUTER_BASE_URL"),
   OPENROUTER_MODEL: optionalVar("OPENROUTER_MODEL"),
   CONTEXT_API_KEY: optionalSecret("CONTEXT_API_KEY"),
@@ -698,6 +706,7 @@ export default Alchemy.Stack(
       env: {
         ...resources,
         ...dataEnv,
+        OPENROUTER_API_KEY: openRouterKey(stage),
         AUTH_MODE: authMode,
         ...(authMode === "cloudflare_access"
           ? { SELFHOST_ADMIN_EMAILS: selfHostAdminEmails.join(",") }
