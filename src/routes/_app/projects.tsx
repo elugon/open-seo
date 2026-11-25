@@ -1,5 +1,8 @@
 import * as React from "react";
-import { projectsQueryOptions } from "@/client/features/projects/projectQueries";
+import {
+  projectsQueryOptions,
+  useCanManageProjects,
+} from "@/client/features/projects/projectQueries";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronRight, Plus } from "lucide-react";
@@ -25,6 +28,7 @@ export const Route = createFileRoute("/_app/projects")({
 
 function ProjectsPage() {
   const [creating, setCreating] = React.useState(false);
+  const canManageProjects = useCanManageProjects();
   // Read after mount to keep SSR/first render stable.
   const [currentProjectId, setCurrentProjectId] = React.useState<string | null>(
     null,
@@ -41,10 +45,12 @@ function ProjectsPage() {
           title="Projects"
           description="Each project has its own Search Console, rank tracking, and audits."
           actions={
-            <Button onClick={() => setCreating(true)}>
-              <Plus data-icon="inline-start" />
-              New project
-            </Button>
+            canManageProjects ? (
+              <Button onClick={() => setCreating(true)}>
+                <Plus data-icon="inline-start" />
+                New project
+              </Button>
+            ) : null
           }
         />
 
@@ -52,42 +58,52 @@ function ProjectsPage() {
           query={projectsQuery}
           errorFallback="Failed to load projects"
         >
-          {(data) => (
-            <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-card">
-              {data.map((project) => (
-                <li key={project.id}>
-                  <Link
-                    to="/p/$projectId/settings"
-                    params={{ projectId: project.id }}
-                    className="flex items-center justify-between gap-3 p-3 transition-colors hover:bg-muted"
-                  >
-                    <span className="flex min-w-0 flex-col">
-                      <span className="flex items-center gap-2">
-                        <span className="truncate font-medium">
-                          {project.name}
+          {(data) =>
+            data.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No projects assigned. Ask your OpenSEO administrator for access.
+              </p>
+            ) : (
+              <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-card">
+                {data.map((project) => (
+                  <li key={project.id}>
+                    <Link
+                      to={
+                        canManageProjects
+                          ? "/p/$projectId/settings"
+                          : "/p/$projectId"
+                      }
+                      params={{ projectId: project.id }}
+                      className="flex items-center justify-between gap-3 p-3 transition-colors hover:bg-muted"
+                    >
+                      <span className="flex min-w-0 flex-col">
+                        <span className="flex items-center gap-2">
+                          <span className="truncate font-medium">
+                            {project.name}
+                          </span>
+                          {project.id === currentProjectId ? (
+                            <Badge variant="secondary" size="sm">
+                              Current
+                            </Badge>
+                          ) : null}
                         </span>
-                        {project.id === currentProjectId ? (
-                          <Badge variant="secondary" size="sm">
-                            Current
-                          </Badge>
-                        ) : null}
+                        <span className="truncate text-xs text-muted-foreground">
+                          {project.domain ?? "No domain set"}
+                        </span>
                       </span>
-                      <span className="truncate text-xs text-muted-foreground">
-                        {project.domain ?? "No domain set"}
-                      </span>
-                    </span>
-                    <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
+                      <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )
+          }
         </QueryState>
 
-        <ArchivedProjects />
+        {canManageProjects ? <ArchivedProjects /> : null}
       </div>
 
-      {creating ? (
+      {canManageProjects && creating ? (
         <CreateProjectModal onClose={() => setCreating(false)} />
       ) : null}
     </div>

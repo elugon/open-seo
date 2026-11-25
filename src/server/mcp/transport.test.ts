@@ -182,6 +182,7 @@ describe("handleSelfHostedOpenSeoMcpRequest", () => {
       expect(selfHostedAuthMocks.createOpenSeoMcpServer).toHaveBeenCalledWith({
         [MCP_AUTH_CONTEXT_PROP]: {
           ...identity,
+          role: authMode === "local_noauth" ? "owner" : "member",
           baseUrl: "https://open-seo.test",
         },
       });
@@ -195,6 +196,33 @@ describe("handleSelfHostedOpenSeoMcpRequest", () => {
       );
     },
   );
+
+  it("propagates the verified Cloudflare Access role into MCP auth props", async () => {
+    selfHostedAuthMocks.resolveCloudflareAccessContext.mockResolvedValue({
+      userId: "cloudflare-admin",
+      userEmail: "admin@example.com",
+      organizationId: "shared-workspace",
+      role: "owner",
+    });
+
+    await handleSelfHostedOpenSeoMcpRequest(
+      createMcpRequest(),
+      "cloudflare_access",
+      {},
+      ctx,
+    );
+
+    expect(selfHostedAuthMocks.createOpenSeoMcpServer).toHaveBeenCalledWith({
+      [MCP_AUTH_CONTEXT_PROP]: {
+        userId: "cloudflare-admin",
+        userEmail: "admin@example.com",
+        organizationId: "shared-workspace",
+        role: "owner",
+        baseUrl: "https://open-seo.test",
+        userAgent: undefined,
+      },
+    });
+  });
 
   it("answers OPTIONS preflight without resolving an auth context", async () => {
     const response = await handleSelfHostedOpenSeoMcpRequest(

@@ -2,9 +2,11 @@ import { db } from "@/db";
 import { user } from "@/db/schema";
 import {
   ensureDelegatedOrganizationForUser,
+  ensureSharedWorkspaceMembership,
   ensureSharedWorkspaceOrganization,
 } from "@/server/auth/delegated-organization";
 import { eq } from "drizzle-orm";
+import { normalizeEmailAddress } from "@/shared/selfhost-checks";
 import type { EnsuredUserContext } from "./types";
 
 const LOCAL_ADMIN_USER_ID = "local-admin";
@@ -83,18 +85,25 @@ async function resolveDelegatedContext(
 export async function resolveSharedWorkspaceContext(
   userId: string,
   userEmail: string,
+  adminEmail: string,
 ): Promise<EnsuredUserContext> {
-  const ensuredEmail = await ensureUserRecord(userId, userEmail);
+  const normalizedEmail = normalizeEmailAddress(userEmail);
+  const ensuredEmail = await ensureUserRecord(userId, normalizedEmail);
   const organizationId = await ensureSharedWorkspaceOrganization();
+  const role: "owner" | "member" =
+    normalizedEmail === normalizeEmailAddress(adminEmail) ? "owner" : "member";
+
+  // The verified request identity determines the role every time. In
+  // particular, a previously configured admin is demoted when the operator
+  // changes SELFHOST_ADMIN_EMAIL; a database row never grants owner by itself.
+  await ensureSharedWorkspaceMembership(userId, role);
 
   return {
     userId,
     userEmail: ensuredEmail,
     emailVerified: true,
     organizationId,
-    // The Access policy is the authorization boundary; everyone it admits has
-    // full control of the shared workspace.
-    role: "owner",
+    role,
   };
 }
 

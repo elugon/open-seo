@@ -12,7 +12,7 @@ import { AppError } from "@/server/lib/errors";
 import { assertLanguageForLocation } from "@/server/lib/market";
 import { getLanguageCode } from "@/shared/keyword-locations";
 
-function mapProject(project: {
+export function mapProject(project: {
   id: string;
   name: string;
   brandName: string | null;

@@ -19,6 +19,7 @@ import { captureMetaSetupStep, MetaSetupEvent } from "@/server/referrals/meta";
 import {
   requireAuthenticatedContext,
   requireProjectContext,
+  requireProjectReadContext,
 } from "@/serverFunctions/middleware";
 
 const projectScopedSchema = z.object({ projectId: z.string().min(1) });
@@ -40,7 +41,7 @@ export const getGscGrantStatus = createServerFn({ method: "GET" })
   });
 
 export const getGscConnection = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectReadContext)
   .validator(projectScopedSchema)
   .handler(async ({ context }) => {
     const [connection, currentUserHasGrant, googleOAuthConfigured] =

@@ -4,8 +4,8 @@ import { PRINT_SCRIPT, REPORT_CSP, reportCsp } from "@/shared/report-sandbox";
 
 const mocks = vi.hoisted(() => ({
   resolveUserContextFromHeaders: vi.fn(),
-  getProjectForOrganization: vi.fn(),
-  getArchivedProjectForOrganization: vi.fn(),
+  getProject: vi.fn(),
+  getArchivedProject: vi.fn(),
   getReportProjectId: vi.fn(),
   getReportHtml: vi.fn(),
 }));
@@ -14,10 +14,10 @@ vi.mock("cloudflare:workers", () => ({ env: { AUTH_MODE: "hosted" } }));
 vi.mock("@/middleware/ensure-user/resolve", () => ({
   resolveUserContextFromHeaders: mocks.resolveUserContextFromHeaders,
 }));
-vi.mock("@/server/features/projects/repositories/ProjectRepository", () => ({
-  ProjectRepository: {
-    getProjectForOrganization: mocks.getProjectForOrganization,
-    getArchivedProjectForOrganization: mocks.getArchivedProjectForOrganization,
+vi.mock("@/server/features/projects/services/ProjectAccessService", () => ({
+  ProjectAccessService: {
+    getProject: mocks.getProject,
+    getArchivedProject: mocks.getArchivedProject,
   },
 }));
 vi.mock("@/server/features/reports/repositories/ReportRepository", () => ({
@@ -40,8 +40,8 @@ beforeEach(() => {
     role: "owner",
   });
   mocks.getReportProjectId.mockResolvedValue("project-1");
-  mocks.getProjectForOrganization.mockResolvedValue({ id: "project-1" });
-  mocks.getArchivedProjectForOrganization.mockResolvedValue(null);
+  mocks.getProject.mockResolvedValue({ id: "project-1", accessRole: "viewer" });
+  mocks.getArchivedProject.mockResolvedValue(null);
   mocks.getReportHtml.mockResolvedValue(HTML);
 });
 
@@ -61,9 +61,10 @@ describe("handleReportRequest", () => {
     });
     // Authorized against the row's project before the document is read, so an
     // unauthorized request never pulls one onto the worker's heap.
-    expect(mocks.getProjectForOrganization).toHaveBeenCalledWith(
+    expect(mocks.getProject).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "user-1", organizationId: "org-1" }),
       "project-1",
-      "org-1",
+      "read",
     );
   });
 
@@ -117,7 +118,7 @@ describe("handleReportRequest", () => {
     // not exist, on purpose.
     [
       "a project the viewer cannot access",
-      () => mocks.getProjectForOrganization.mockResolvedValue(null),
+      () => mocks.getProject.mockResolvedValue(null),
     ],
   ])("answers the same 404 for %s", async (_case, arrange) => {
     arrange();
@@ -129,9 +130,9 @@ describe("handleReportRequest", () => {
     expect(mocks.getReportHtml).not.toHaveBeenCalled();
   });
 
-  it("names an archived project of the viewer's own organization", async () => {
-    mocks.getProjectForOrganization.mockResolvedValue(null);
-    mocks.getArchivedProjectForOrganization.mockResolvedValue({
+  it("names an archived project for an admin", async () => {
+    mocks.getProject.mockResolvedValue(null);
+    mocks.getArchivedProject.mockResolvedValue({
       id: "project-1",
       name: "badseo.dev",
     });
@@ -142,6 +143,17 @@ describe("handleReportRequest", () => {
     expect(await response.text()).toBe(
       "This project is archived, so its reports are hidden. Restore badseo.dev to read them.",
     );
+    expect(mocks.getReportHtml).not.toHaveBeenCalled();
+  });
+
+  it("does not expose an archived project name to a restricted member", async () => {
+    mocks.getProject.mockResolvedValue(null);
+    mocks.getArchivedProject.mockRejectedValue(new Error("FORBIDDEN"));
+
+    const response = await handleReportRequest("report-1", request());
+
+    expect(response.status).toBe(404);
+    expect(await response.text()).toBe(NOT_FOUND_BODY);
     expect(mocks.getReportHtml).not.toHaveBeenCalled();
   });
 

@@ -17,6 +17,8 @@ import { createCompactFunction } from "agents/sessions";
 import { generateText, type UIMessage } from "ai";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
+import { getAuthMode } from "@/lib/auth-mode";
+import { isValidEmailAddress } from "@/shared/selfhost-checks";
 import { db, withPgClient } from "@/db";
 import { user } from "@/db/schema";
 import {
@@ -26,6 +28,7 @@ import {
 import { SamSessionRepository } from "@/server/features/sam/SamSessionRepository";
 import { ProjectContextService } from "@/server/features/project-context/services/ProjectContextService";
 import { ProjectRepository } from "@/server/features/projects/repositories/ProjectRepository";
+import { ProjectAccessService } from "@/server/features/projects/services/ProjectAccessService";
 import { buildSamSkillSource } from "@/server/features/sam/samSkills";
 import { buildSamSystemPrompt } from "@/server/features/sam/samSystemPrompt";
 import {
@@ -35,6 +38,7 @@ import {
 import { buildSamChatModel } from "@/server/lib/openrouter";
 import {
   isHostedServerAuthMode,
+  getEnvValueSync,
   usesBetterAuthServer,
 } from "@/server/lib/runtime-env";
 import {
@@ -48,6 +52,8 @@ import {
 import { getPublicOrigin } from "@/server/mcp/public-origin";
 import { MCP_SCOPE } from "@/lib/oauth-resource";
 import { AuthRepository } from "@/server/auth/repositories/AuthRepository";
+import { asAppError } from "@/server/lib/errors";
+import { resolveSharedWorkspaceContext } from "@/middleware/ensure-user/delegated";
 import type { ToolAuthContext } from "@/server/mcp/context";
 
 // SAM's read-only view of the project's shared memory. The block has no `set`
@@ -314,6 +320,52 @@ export class SamChatAgent extends Think {
     });
   }
 
+  private async getTurnActor(ctx: SamContext): Promise<{
+    userId: string;
+    userEmail: string;
+    organizationId: string;
+    role: string;
+  } | null> {
+    const [currentUser] = await db
+      .select({ email: user.email })
+      .from(user)
+      .where(eq(user.id, ctx.row.userId))
+      .limit(1);
+    if (!currentUser) return null;
+
+    if (
+      getAuthMode(getEnvValueSync(this.env, "AUTH_MODE")) ===
+      "cloudflare_access"
+    ) {
+      const adminEmail = getEnvValueSync(this.env, "SELFHOST_ADMIN_EMAIL");
+      if (!adminEmail || !isValidEmailAddress(adminEmail)) return null;
+      const shared = await resolveSharedWorkspaceContext(
+        ctx.row.userId,
+        currentUser.email,
+        adminEmail,
+      );
+      if (shared.organizationId !== ctx.project.organizationId) return null;
+      return {
+        userId: shared.userId,
+        userEmail: shared.userEmail,
+        organizationId: shared.organizationId,
+        role: shared.role,
+      };
+    }
+
+    const membership = await AuthRepository.getMembership(
+      ctx.row.userId,
+      ctx.project.organizationId,
+    );
+    if ((await usesBetterAuthServer()) && !membership) return null;
+    return {
+      userId: ctx.row.userId,
+      userEmail: currentUser.email,
+      organizationId: ctx.project.organizationId,
+      role: membership?.role ?? "owner",
+    };
+  }
+
   // Gates swap the model for one turn: the canned model streams the refusal
   // back through Think's normal pipeline (rendered and persisted like any
   // assistant message) without calling a provider, so a refusal is free even
@@ -341,6 +393,38 @@ export class SamChatAgent extends Think {
         );
       }
 
+      // The Worker checks the socket request, but an already-open connection
+      // can outlive a membership or project-role change. Re-resolve the actor
+      // and project permission for each turn before memory, tools, or credits
+      // are touched. Cloudflare Access uses the verified account email plus
+      // the current admin setting; a stored owner role alone grants nothing.
+      const actor = await this.getTurnActor(ctx);
+      if (!actor) {
+        turn.refusal = "no_access";
+        return this.refusalTurn(
+          "You no longer have access to this project, so I can't continue this chat.",
+        );
+      }
+      try {
+        const accessible = await ProjectAccessService.getProject(
+          actor,
+          ctx.project.id,
+          "collaborate",
+        );
+        if (!accessible) {
+          turn.refusal = "no_access";
+          return this.refusalTurn(
+            "You no longer have access to this project, so I can't continue this chat.",
+          );
+        }
+      } catch (error) {
+        if (asAppError(error)?.code !== "FORBIDDEN") throw error;
+        turn.refusal = "no_access";
+        return this.refusalTurn(
+          "You no longer have permission to use this project, so I can't continue this chat.",
+        );
+      }
+
       // Gate every turn on credits in hosted mode: SAM is open to every plan
       // (including free), and LLM tokens plus DataForSEO tool calls all draw
       // down the org's credit balance. Self-hosted brings its own provider
@@ -352,7 +436,7 @@ export class SamChatAgent extends Think {
       if (hosted) {
         const customer = {
           userId: ctx.row.userId,
-          userEmail: ctx.userEmail,
+          userEmail: actor.userEmail,
           organizationId,
           projectId: ctx.project.id,
         };
@@ -378,27 +462,11 @@ export class SamChatAgent extends Think {
       const baseUrl =
         (await this.ctx.storage.get<string>(PUBLIC_ORIGIN_KEY)) ??
         "https://app.openseo.so";
-      // Delegated/self-host orgs have no member rows — implicit owner. With
-      // real accounts (hosted and password modes) a missing member row means the
-      // user was removed from the workspace; fail closed instead of letting
-      // the open socket keep owner-level tools (WebSockets authorize at
-      // connect time only, so this per-turn check is what actually revokes a
-      // removed member's chat).
-      const membership = await AuthRepository.getMembership(
-        ctx.row.userId,
-        organizationId,
-      );
-      if ((await usesBetterAuthServer()) && !membership) {
-        turn.refusal = "no_access";
-        return this.refusalTurn(
-          "You no longer have access to this organization, so I can't continue this chat.",
-        );
-      }
       const authContext: ToolAuthContext = {
         userId: ctx.row.userId,
-        userEmail: ctx.userEmail,
+        userEmail: actor.userEmail,
         organizationId,
-        role: membership?.role ?? "owner",
+        role: actor.role,
         baseUrl,
         clientId: null,
         scopes: [MCP_SCOPE],

@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { LocalSeoService } from "@/server/features/local-seo/services/LocalSeoService";
-import { requireProjectContext } from "./middleware";
+import { requireProjectContext, requireProjectReadContext } from "./middleware";
 import {
   createLocalTrackerSchema,
   localLookupSchema,
@@ -13,7 +13,7 @@ import {
 } from "@/types/schemas/local-seo";
 
 export const listLocalTrackers = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectReadContext)
   .validator(localProjectSchema)
   .handler(({ context }) => LocalSeoService.listTrackers(context.projectId));
 export const lookupLocalBusiness = createServerFn({ method: "POST" })
@@ -38,7 +38,7 @@ export const createLocalTracker = createServerFn({ method: "POST" })
     ),
   );
 export const getLocalTracker = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectReadContext)
   .validator(localTrackerIdSchema)
   .handler(({ data, context }) =>
     LocalSeoService.getTracker(context.projectId, data.trackerId),
@@ -74,7 +74,7 @@ export const startLocalCheck = createServerFn({ method: "POST" })
     ),
   );
 export const getLocalScan = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectReadContext)
   .validator(localScanIdSchema)
   .handler(({ data, context }) =>
     LocalSeoService.getScan(context.projectId, data.scanId),

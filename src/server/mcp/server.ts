@@ -27,6 +27,7 @@ import {
   type McpProps,
   type ToolContext,
 } from "@/server/mcp/context";
+import { authorizeRestrictedMcpTool } from "@/server/mcp/project-access";
 import { objectSchema } from "@/server/mcp/output-schemas";
 import { memoizeJsonSchema } from "@/server/mcp/json-schema-memo";
 import {
@@ -233,6 +234,7 @@ function registerOpenSeoTool<Input extends ToolSchema>(
     },
     async (args, context) => {
       const toolContext = createMcpToolContext(context, authProps);
+      await authorizeRestrictedMcpTool(tool.name, args, toolContext);
       const result = await handler(
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- args were validated against the tool's own inputSchema just above
         args as ToolArgs<Input>,

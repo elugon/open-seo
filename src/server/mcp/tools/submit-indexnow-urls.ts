@@ -3,7 +3,9 @@ import { IndexNowService } from "@/server/features/indexnow/services/IndexNowSer
 import { buildProjectMeta } from "@/server/mcp/context";
 import { mcpResponse } from "@/server/mcp/formatters";
 import { optionalMetaOutputSchema } from "@/server/mcp/output-schemas";
+import { requireMcpWorkspaceAdmin } from "@/server/mcp/project-access";
 import { withMcpProjectAuth } from "@/server/mcp/project-auth";
+import type { ToolContext } from "@/server/mcp/context";
 import { projectIdSchema } from "@/server/mcp/schemas";
 import { indexNowUrlsSchema } from "@/types/schemas/indexnow";
 
@@ -43,35 +45,38 @@ export const submitIndexNowUrlsTool = {
       destructiveHint: false,
     },
   },
-  handler: withMcpProjectAuth(async (args: Args, context) => {
-    const result = await IndexNowService.submitUrls(
-      {
-        projectId: args.projectId,
-        organizationId: context.auth.organizationId,
-      },
-      args.urls,
-    );
-    const lines = [
-      result.keyCreated
-        ? `Created this project's IndexNow key: ${result.key}`
-        : `IndexNow key: ${result.key}`,
-      ...result.hosts.map(
-        (host) => `${host.host}: ${host.status}. ${host.message}`,
-      ),
-      ...(result.skipped.length > 0
-        ? [
-            `Skipped ${result.skipped.length} URL${result.skipped.length === 1 ? "" : "s"} not on the project's website.`,
-          ]
-        : []),
-    ];
-    return mcpResponse({
-      text: lines.join("\n"),
-      meta: buildProjectMeta(
-        context,
-        args.projectId,
-        `/p/${args.projectId}/settings/integrations#indexnow`,
-      ),
-      structuredContent: result,
-    });
-  }),
+  handler: async (args: Args, toolContext: ToolContext) => {
+    requireMcpWorkspaceAdmin(toolContext.auth);
+    return withMcpProjectAuth(async (authorizedArgs: Args, context) => {
+      const result = await IndexNowService.submitUrls(
+        {
+          projectId: authorizedArgs.projectId,
+          organizationId: context.auth.organizationId,
+        },
+        authorizedArgs.urls,
+      );
+      const lines = [
+        result.keyCreated
+          ? `Created this project's IndexNow key: ${result.key}`
+          : `IndexNow key: ${result.key}`,
+        ...result.hosts.map(
+          (host) => `${host.host}: ${host.status}. ${host.message}`,
+        ),
+        ...(result.skipped.length > 0
+          ? [
+              `Skipped ${result.skipped.length} URL${result.skipped.length === 1 ? "" : "s"} not on the project's website.`,
+            ]
+          : []),
+      ];
+      return mcpResponse({
+        text: lines.join("\n"),
+        meta: buildProjectMeta(
+          context,
+          authorizedArgs.projectId,
+          `/p/${authorizedArgs.projectId}/settings/integrations#indexnow`,
+        ),
+        structuredContent: result,
+      });
+    })(args, toolContext);
+  },
 };

@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { z } from "zod";
 import { resolveUserContextFromHeaders } from "@/middleware/ensure-user/resolve";
-import { ProjectRepository } from "@/server/features/projects/repositories/ProjectRepository";
+import { ProjectAccessService } from "@/server/features/projects/services/ProjectAccessService";
 import { aiBrandLabel } from "@/shared/ai-visibility";
 import type { AiExportInput } from "@/types/schemas/ai-visibility";
 import { loadAiFullAnswers } from "./aiVisibilityResults";
@@ -107,9 +107,10 @@ export async function handleAiVisibilityDownload(
   } catch {
     return new Response("Unauthorized", { status: 401 });
   }
-  const project = await ProjectRepository.getProjectForOrganization(
+  const project = await ProjectAccessService.getProject(
+    auth,
     projectId.data,
-    auth.organizationId,
+    "read",
   );
   if (!project) return new Response("Not found", { status: 404 });
   const id = z.string().uuid().safeParse(url.searchParams.get("exportId"));

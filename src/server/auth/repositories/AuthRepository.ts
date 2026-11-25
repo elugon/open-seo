@@ -50,6 +50,27 @@ async function upsertDelegatedOrganization(input: DelegatedOrganizationInput) {
     });
 }
 
+async function upsertMembership(input: {
+  organizationId: string;
+  userId: string;
+  role: "owner" | "member";
+}) {
+  await db
+    .insert(member)
+    .values({
+      id: `${input.organizationId}:${input.userId}`,
+      organizationId: input.organizationId,
+      userId: input.userId,
+      role: input.role,
+      createdAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: [member.organizationId, member.userId],
+      set: { role: input.role },
+      setWhere: ne(member.role, input.role),
+    });
+}
+
 async function findFirstOrganizationIdForUser(userId: string) {
   const [existingMembership] = await db
     .select({ organizationId: member.organizationId })
@@ -364,6 +385,7 @@ async function setDistanceUnit(userId: string, unit: DistanceUnit) {
 
 export const AuthRepository = {
   upsertDelegatedOrganization,
+  upsertMembership,
   findFirstOrganizationIdForUser,
   findFirstFoundedOrganizationIdForUser,
   findNewestMembershipForUser,

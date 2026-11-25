@@ -6,7 +6,7 @@ The `deploy-selfhost` job in [CI](../../.github/workflows/ci.yml) publishes `ope
 
 1. Protect `main` with required pull requests and the `ci`, `docker-build`, and `standalone-image` checks. Require maintainer review for `.github/` changes. Configure the `selfhost-production` GitHub environment to allow deployments from `main` only.
 2. In that environment, add the `CLOUDFLARE_ACCOUNT_ID` variable for the existing deployment and the `CLOUDFLARE_API_TOKEN` secret. Use an account-scoped deployment token. See the [Alchemy token permissions](production-deployment.md#secrets) for the shared requirements and include Access write permission if Alchemy manages the Access application.
-3. Add the current `.env.selfhost` contents as the `SELFHOST_ENV` environment secret. Preserve the existing provider keys, Access allowlist or `TEAM_DOMAIN` and `POLICY_AUD`, and any configured integration or encryption secrets. Set `AUTH_MODE=cloudflare_access` and `CUSTOM_DOMAIN=openseo.ighenatt.es` explicitly. The Cloudflare account ID and API token are configured separately.
+3. Add the current `.env.selfhost` contents as the `SELFHOST_ENV` environment secret. Preserve the existing provider keys, Access allowlist or `TEAM_DOMAIN` and `POLICY_AUD`, and any configured integration or encryption secrets. Set `AUTH_MODE=cloudflare_access`, `CUSTOM_DOMAIN=openseo.ighenatt.es`, and `SELFHOST_ADMIN_EMAIL` to the administrator's Cloudflare Access email. Verify the Access policy admits that address. The Cloudflare account ID and API token are configured separately.
 4. Before enabling the first deployment, back up the live D1 database. Build locally without publishing resources, using the self-host build steps from `deploy:selfhost`:
 
    ```sh
@@ -22,3 +22,7 @@ The `deploy-selfhost` job in [CI](../../.github/workflows/ci.yml) publishes `ope
 ## Stop or roll back
 
 Set `ENABLE_SELFHOST_DEPLOY` to `false` to stop scheduling new automatic deploys. Let an active migration finish. Review the Cloudflare deployment and the Alchemy state before retrying. A [Worker rollback](https://developers.cloudflare.com/workers/versions-and-deployments/rollbacks/) changes the Worker version but leaves D1 migrations and data in place. Check schema compatibility before reverting code.
+
+Before upgrading an existing deployment to the version with project permissions, update `SELFHOST_ENV`, back up D1, and check the Alchemy plan as above. After deployment, sign in as the administrator and grant the planned assignments under **Settings → Users and permissions**. Verify an assigned and an unassigned project with a second Access account.
+
+Before rolling back to a Worker version without project permissions, restrict the Cloudflare Access policy to the administrator. Earlier Worker versions give every admitted user access to the shared workspace. Keep the additive permissions table and its assignments in D1 so they are available when the new version is restored.

@@ -2,11 +2,14 @@ import { isAuditRenderingAllowed } from "@/server/lib/audit/rendering-policy";
 import { CrawlerCredentialService } from "@/server/features/audit/services/CrawlerCredentialService";
 import { createServerFn } from "@tanstack/react-start";
 import { waitUntil } from "cloudflare:workers";
-import { requireOrgPermission } from "@/server/auth/org-gate";
+import { requireAuditRemovalPermission } from "@/server/features/audit/services/auditAccess";
 import { AuditService } from "@/server/features/audit/services/AuditService";
 import { AuditResultsService } from "@/server/features/audit/services/AuditResultsService";
 import { captureServerEvent } from "@/server/lib/posthog";
-import { requireProjectContext } from "@/serverFunctions/middleware";
+import {
+  requireProjectContext,
+  requireProjectReadContext,
+} from "@/serverFunctions/middleware";
 import {
   deleteAuditSchema,
   getAuditHistorySchema,
@@ -59,21 +62,21 @@ export const startAudit = createServerFn({ method: "POST" })
   });
 
 export const getAuditStatus = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectReadContext)
   .validator(getAuditStatusSchema)
   .handler(async ({ data, context }) => {
     return AuditService.getStatus(data.auditId, context.projectId);
   });
 
 export const getAuditSummary = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectReadContext)
   .validator(getAuditSummarySchema)
   .handler(async ({ data, context }) => {
     return AuditResultsService.getSummary(data.auditId, context.projectId);
   });
 
 export const getAuditPages = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectReadContext)
   .validator(getAuditPagesSchema)
   .handler(async ({ data, context }) => {
     const { projectId: _projectId, ...input } = data;
@@ -81,7 +84,7 @@ export const getAuditPages = createServerFn({ method: "POST" })
   });
 
 export const getAuditIssues = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectReadContext)
   .validator(getAuditIssuesSchema)
   .handler(async ({ data, context }) => {
     const { projectId: _projectId, ...input } = data;
@@ -89,14 +92,14 @@ export const getAuditIssues = createServerFn({ method: "POST" })
   });
 
 export const getAuditHistory = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectReadContext)
   .validator(getAuditHistorySchema)
   .handler(async ({ context }) => {
     return AuditService.getHistory(context.projectId);
   });
 
 export const getCrawlProgress = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectReadContext)
   .validator(getCrawlProgressSchema)
   .handler(async ({ data, context }) => {
     return AuditService.getCrawlProgress(data.auditId, context.projectId);
@@ -106,15 +109,13 @@ export const deleteAudit = createServerFn({ method: "POST" })
   .middleware(requireProjectContext)
   .validator(deleteAuditSchema)
   .handler(async ({ data, context }) => {
-    // Deleting audits frees the org's free-plan capacity ceiling (a SUM over
-    // audit rows), so it gets the same destructive-action gate as archiving.
-    requireOrgPermission(context, { project: ["delete"] });
+    await requireAuditRemovalPermission(context, context.projectId);
     await AuditService.remove(data.auditId, context.projectId);
     return { success: true };
   });
 
 export const getAuditCapabilities = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectReadContext)
   .validator(getAuditHistorySchema)
   .handler(async () => ({
     canRenderJavaScript: await isAuditRenderingAllowed(),

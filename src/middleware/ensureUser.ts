@@ -1,9 +1,9 @@
 import { createMiddleware } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { resolveUserContextFromHeaders } from "@/middleware/ensure-user/resolve";
-import type { EnsuredProject } from "@/middleware/ensure-user/types";
+import type { EnsuredUserContext } from "@/middleware/ensure-user/types";
 import { AppError } from "@/server/lib/errors";
-import { ProjectRepository } from "@/server/features/projects/repositories/ProjectRepository";
+import { ProjectAccessService } from "@/server/features/projects/services/ProjectAccessService";
 
 function extractProjectId(data: unknown) {
   if (!data || typeof data !== "object" || !("projectId" in data)) {
@@ -23,26 +23,30 @@ export const ensureUserMiddleware = createMiddleware({
 
   const projectId = extractProjectId(data);
 
-  let project: EnsuredProject | undefined;
+  let project: EnsuredUserContext["project"];
+  let projectAccessRole: EnsuredUserContext["projectAccessRole"];
 
   if (projectId) {
-    // ADR 0001 intentionally keeps project authorization here so every
-    // project-scoped server function gets the same request-scoped org+project
-    // check before handlers run. Function-level middleware narrows the type.
-    project = await ProjectRepository.getProjectForOrganization(
+    // Resolve the live assignment once per request. Function-level middleware
+    // checks what a handler is allowed to do with the project.
+    const authorized = await ProjectAccessService.getProject(
+      context,
       projectId,
-      context.organizationId,
+      "read",
     );
-
-    if (!project) {
+    if (!authorized) {
       throw new AppError("NOT_FOUND");
     }
+    const { accessRole, ...projectData } = authorized;
+    project = projectData;
+    projectAccessRole = accessRole;
   }
 
   return next({
     context: {
       ...context,
       project,
+      projectAccessRole,
     },
   });
 });

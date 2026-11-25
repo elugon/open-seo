@@ -1,7 +1,8 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { NavTab, NavTabs } from "@/client/components/NavTabs";
 import { PageHeader } from "@/client/components/PageHeader";
-import { usesBetterAuthClient } from "@/lib/auth-mode";
+import { useCanManageProjects } from "@/client/features/projects/projectQueries";
+import { getClientAuthMode, usesBetterAuthClient } from "@/lib/auth-mode";
 import { pageHead } from "@/client/lib/pageHead";
 
 export const Route = createFileRoute("/_app/settings")({
@@ -13,12 +14,22 @@ export const Route = createFileRoute("/_app/settings")({
 // signed-in user (theme, API keys, analytics); Organization = the active org
 // (team). Billing keeps its own page — it's linked from paywalls all over.
 function SettingsLayout() {
+  const isCloudflareAccess = getClientAuthMode() === "cloudflare_access";
+  const canManageProjects = useCanManageProjects(isCloudflareAccess);
   const tabs = [
     { to: "/settings" as const, label: "Personal", exact: true },
     // Access / no-auth self-host has no memberships — the organization tab
     // would 404.
     ...(usesBetterAuthClient()
       ? [{ to: "/settings/organization" as const, label: "Organization" }]
+      : []),
+    ...(isCloudflareAccess && canManageProjects
+      ? [
+          {
+            to: "/settings/project-access" as const,
+            label: "Users and permissions",
+          },
+        ]
       : []),
   ];
 

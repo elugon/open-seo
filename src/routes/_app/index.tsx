@@ -12,6 +12,7 @@ import { QueryError } from "@/client/components/QueryState";
 import { DashboardSkeleton } from "@/client/features/dashboard/DashboardPage";
 import { StatusScreen } from "@/client/components/StatusScreen";
 import { SUBSCRIBE_ROUTE } from "@/shared/billing";
+import { getClientAuthMode } from "@/lib/auth-mode";
 
 export const Route = createFileRoute("/_app/")({
   component: IndexRedirect,
@@ -25,21 +26,26 @@ function IndexRedirect() {
   // if the id isn't one of the org's projects, clears it and sends the user
   // back here to fall back to the list.
   const lastProjectId = getLastProjectId();
+  const selfHostedWithAccess = getClientAuthMode() === "cloudflare_access";
   const { data, error, isError, isFetching, refetch } = useQuery({
     ...projectsQueryOptions(),
     retry: false,
   });
 
   useEffect(() => {
-    // getProjects always returns at least one project.
-    const projectId = lastProjectId ?? data?.[0]?.id;
+    const rememberedProjectId =
+      !selfHostedWithAccess || data?.some(({ id }) => id === lastProjectId)
+        ? lastProjectId
+        : null;
+    const projectId = rememberedProjectId ?? data?.[0]?.id;
+    if (selfHostedWithAccess && isFetching) return;
     if (!projectId) return;
     void navigate({
       to: "/p/$projectId",
       params: { projectId },
       replace: true,
     });
-  }, [lastProjectId, data, navigate]);
+  }, [lastProjectId, data, isFetching, selfHostedWithAccess, navigate]);
 
   useEffect(() => {
     if (getErrorCode(error) !== "PAYMENT_REQUIRED") {
@@ -75,6 +81,15 @@ function IndexRedirect() {
             />
           </StatusScreen>
         }
+      />
+    );
+  }
+
+  if (selfHostedWithAccess && !isFetching && data?.length === 0) {
+    return (
+      <StatusScreen
+        title="No projects assigned"
+        description="Ask your OpenSEO administrator to give you access to a project."
       />
     );
   }

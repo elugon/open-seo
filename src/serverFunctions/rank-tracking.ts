@@ -11,6 +11,7 @@ import { markOnboardingMilestone } from "@/server/email/onboarding-drip";
 import {
   requireAuthenticatedContext,
   requireProjectContext,
+  requireProjectReadContext,
 } from "@/serverFunctions/middleware";
 import {
   getConfigsSchema,
@@ -66,14 +67,14 @@ async function requireConfig(configId: string, projectId: string) {
 }
 
 export const getRankTrackingConfigs = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectReadContext)
   .validator(getConfigsSchema)
   .handler(async ({ context }) => {
     return RankTrackingRepository.getConfigsForProject(context.projectId);
   });
 
 export const getRankTrackingConfigSummaries = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectReadContext)
   .validator(getConfigsSchema)
   .handler(async ({ context }) => {
     return RankTrackingRepository.getConfigSummaries(context.projectId);
@@ -173,7 +174,7 @@ export const triggerRankCheck = createServerFn({ method: "POST" })
   });
 
 export const getLatestRankResults = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectReadContext)
   .validator(getLatestResultsSchema)
   .handler(async ({ data, context }) => {
     return getLatestResults(
@@ -184,14 +185,14 @@ export const getLatestRankResults = createServerFn({ method: "POST" })
   });
 
 export const getLatestRankRun = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectReadContext)
   .validator(getLatestRunSchema)
   .handler(async ({ data, context }) => {
     return RankTrackingService.getLatestRun(data.configId, context.projectId);
   });
 
 export const estimateRankCheckCost = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectReadContext)
   .validator(estimateCostSchema)
   .handler(async ({ data, context }) => {
     return RankTrackingService.estimateCost(
@@ -323,7 +324,7 @@ export const refreshTrackingKeywordMetrics = createServerFn({ method: "POST" })
   });
 
 export const getRankKeywordHistory = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectReadContext)
   .validator(getKeywordHistorySchema)
   .handler(async ({ data, context }): Promise<RankKeywordHistoryPoint[]> => {
     await requireConfig(data.configId, context.projectId);
@@ -335,7 +336,7 @@ export const getRankKeywordHistory = createServerFn({ method: "POST" })
   });
 
 export const getRankConfigTrend = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectReadContext)
   .validator(getConfigTrendSchema)
   .handler(async ({ data, context }): Promise<RankConfigTrendPoint[]> => {
     await requireConfig(data.configId, context.projectId);
@@ -366,7 +367,7 @@ export const getRankConfigTrend = createServerFn({ method: "POST" })
   });
 
 export const getRankPositionMatrix = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
+  .middleware(requireProjectReadContext)
   .validator(getPositionMatrixSchema)
   .handler(async ({ data, context }): Promise<RankPositionMatrixCell[]> => {
     await requireConfig(data.configId, context.projectId);

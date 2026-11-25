@@ -37,6 +37,19 @@ if (config.DATABASE_PROVIDER && config.DATABASE_PROVIDER !== 'd1') {
 if (Boolean(config.TEAM_DOMAIN) !== Boolean(config.POLICY_AUD)) {
   throw new Error('Set both TEAM_DOMAIN and POLICY_AUD for managed-outside-Alchemy Access, or omit both.');
 }
+const adminEmail = config.SELFHOST_ADMIN_EMAIL?.trim().toLowerCase();
+if (!adminEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(adminEmail)) {
+  throw new Error('SELFHOST_ENV must set a valid SELFHOST_ADMIN_EMAIL for the initial Cloudflare Access administrator.');
+}
+if (!(config.TEAM_DOMAIN && config.POLICY_AUD)) {
+  const allowedEmails = (config.ACCESS_ALLOWED_EMAILS ?? '')
+    .split(',')
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean);
+  if (!allowedEmails.includes(adminEmail)) {
+    throw new Error('SELFHOST_ADMIN_EMAIL must also appear in ACCESS_ALLOWED_EMAILS for the managed Cloudflare Access application.');
+  }
+}
 for (const name of ['CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN', 'ALCHEMY_PROFILE']) {
   if (Object.hasOwn(config, name)) throw new Error(`Configure ${name} outside SELFHOST_ENV.`);
 }

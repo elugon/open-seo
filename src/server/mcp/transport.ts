@@ -276,6 +276,10 @@ export async function handleSelfHostedOpenSeoMcpRequest(
     userId: identity.userId,
     userEmail: identity.userEmail,
     organizationId: identity.organizationId,
+    // Cloudflare Access actors are members unless the resolver has verified
+    // the configured initial admin. A missing role must never inherit the
+    // delegated/self-host implicit-owner fallback in createMcpToolContext.
+    role: identity.role ?? (authMode === "local_noauth" ? "owner" : "member"),
     baseUrl: getPublicOrigin(request),
     userAgent: request.headers.get("user-agent") ?? undefined,
   });

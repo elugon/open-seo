@@ -34,6 +34,19 @@ https://YOUR_WORKER_HOSTNAME/mcp
 
 ## Manage accounts
 
+### Assign project access
+
+With Cloudflare Access, admit teammates through the Access policy first. After a teammate signs in to OpenSEO once, the administrator can find them under **Settings → Users and permissions** and choose a role for each project.
+
+- **No access** hides the project and denies direct access to it. This is the default for teammates, including after an upgrade.
+- **Viewer** can read saved project results.
+- **Collaborator** can also edit and delete project content and run research and audits that use the configured providers.
+
+The account configured in `SELFHOST_ADMIN_EMAIL` can access every project and manage assignments, projects, and integrations.
+Revoking access takes effect for subsequent requests. Scheduled checks belong to the project and continue running until someone with access pauses them.
+
+### Password accounts
+
 With password accounts, the first visitor creates the administrator's account and teammates join from invitation links (Team settings). There is no email delivery, so password resets and accounts outside the invitation flow are operator commands:
 
 1. Set `OPENSEO_OPERATOR_SECRET` in `.env.selfhost` to a random value (`openssl rand -hex 32`) and redeploy. This turns on the operator endpoint, which answers only to requests carrying that secret.

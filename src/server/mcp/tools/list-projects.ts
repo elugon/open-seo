@@ -1,4 +1,7 @@
-import { ProjectService } from "@/server/features/projects/services/ProjectService";
+import {
+  isProjectRestricted,
+  ProjectAccessService,
+} from "@/server/features/projects/services/ProjectAccessService";
 import { mcpResponse } from "@/server/mcp/formatters";
 import { type ToolContext } from "@/server/mcp/context";
 import { optionalMetaOutputSchema } from "@/server/mcp/output-schemas";
@@ -34,13 +37,18 @@ export const listProjectsTool = {
     },
   },
   handler: async (_args: Record<string, never>, context: ToolContext) => {
-    const { baseUrl, organizationId } = context.auth;
-    const projects = await ProjectService.listProjects(organizationId);
+    const { baseUrl } = context.auth;
+    const projects = await ProjectAccessService.listProjects(context.auth);
+    const isRestricted = isProjectRestricted(context.auth);
     const lines =
       projects.length === 0
-        ? [
-            "No projects yet. Ask the user for their website, then call create_project with its domain. Creating a project uses no credits.",
-          ]
+        ? isRestricted
+          ? [
+              "No projects are assigned to your account. Ask the OpenSEO administrator to grant access to a project.",
+            ]
+          : [
+              "No projects yet. Ask the user for their website, then call create_project with its domain. Creating a project uses no credits.",
+            ]
         : projects.map(
             (p) =>
               `- ${p.id}  ${p.name}${p.domain ? ` (${p.domain})` : ""}  market:${p.locationCode}/${p.languageCode}`,

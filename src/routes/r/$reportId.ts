@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { createFileRoute } from "@tanstack/react-router";
 import { usesBetterAuth } from "@/lib/auth-mode";
 import { resolveUserContextFromHeaders } from "@/middleware/ensure-user/resolve";
-import { ProjectRepository } from "@/server/features/projects/repositories/ProjectRepository";
+import { ProjectAccessService } from "@/server/features/projects/services/ProjectAccessService";
 import { ReportRepository } from "@/server/features/reports/repositories/ReportRepository";
 import { asAppError } from "@/server/lib/errors";
 import { createReportMapGrants } from "@/server/features/reports/reportMapGrant";
@@ -13,9 +13,8 @@ import { reportDocumentResponse, textResponse } from "@/shared/report-sandbox";
 // and no `_authenticated` guard runs — this handler does its own auth.
 
 // One body for "no such report" and "another organization's report", so report
-// ids cannot be probed for existence. An archived project of the reader's own
-// organization gets its own message: the reader is already a member, so naming
-// it leaks nothing and "does not exist" would send them hunting.
+// ids cannot be probed for existence. An admin can get a specific archived
+// project message; other users get the same response as a missing report.
 const NOT_FOUND_BODY =
   "This report does not exist or you do not have access to it.";
 
@@ -57,18 +56,26 @@ async function handleReportRequest(
   const projectId = await ReportRepository.getReportProjectId(reportId);
   if (!projectId) return reportNotFound();
 
-  // The canonical project-access check — org ownership plus "not archived" —
-  // the same one ensureUserMiddleware uses for server functions. Org ids are
-  // never compared by hand.
-  const project = await ProjectRepository.getProjectForOrganization(
+  // Authorize before touching the `html` column. Unassigned project ids and
+  // ids from another organization share the same not-found response.
+  const project = await ProjectAccessService.getProject(
+    context,
     projectId,
-    context.organizationId,
+    "read",
   );
   if (!project) {
-    const archived = await ProjectRepository.getArchivedProjectForOrganization(
-      projectId,
-      context.organizationId,
-    );
+    let archived: Awaited<
+      ReturnType<typeof ProjectAccessService.getArchivedProject>
+    >;
+    try {
+      archived = await ProjectAccessService.getArchivedProject(
+        context,
+        projectId,
+      );
+    } catch (error) {
+      if (asAppError(error)?.code === "FORBIDDEN") return reportNotFound();
+      throw error;
+    }
     if (!archived) return reportNotFound();
     return textResponse(
       `This project is archived, so its reports are hidden. Restore ${archived.name} to read them.`,

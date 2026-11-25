@@ -1,6 +1,7 @@
 import { AUTH_MODES } from "@/lib/auth-mode";
 import {
   looksLikeDataForSeoKey,
+  isValidEmailAddress,
   MIN_BETTER_AUTH_SECRET_LENGTH,
   validateTeamDomain,
 } from "@/shared/selfhost-checks";
@@ -127,9 +128,21 @@ function checkAuthMode(env: EnvRecord, items: PreflightItem[]): void {
   // cloudflare_access (explicit or defaulted)
   const teamDomain = get(env, "TEAM_DOMAIN");
   const policyAud = get(env, "POLICY_AUD");
+  const adminEmail = get(env, "SELFHOST_ADMIN_EMAIL");
   const modeLabel = rawMode
     ? "cloudflare_access"
     : "cloudflare_access (default — AUTH_MODE is unset)";
+
+  if (!adminEmail || !isValidEmailAddress(adminEmail)) {
+    items.push({
+      key: "auth",
+      name: "SELFHOST_ADMIN_EMAIL",
+      level: "fail",
+      message:
+        "Set SELFHOST_ADMIN_EMAIL to the initial administrator's valid email.",
+    });
+    if (teamDomain && policyAud) return;
+  }
 
   if (!teamDomain || !policyAud) {
     const missing = [

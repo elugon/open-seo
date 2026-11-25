@@ -16,6 +16,17 @@ export async function ensureSharedWorkspaceOrganization() {
   return SHARED_WORKSPACE_ORGANIZATION_ID;
 }
 
+export async function ensureSharedWorkspaceMembership(
+  userId: string,
+  role: "owner" | "member",
+) {
+  await AuthRepository.upsertMembership({
+    organizationId: SHARED_WORKSPACE_ORGANIZATION_ID,
+    userId,
+    role,
+  });
+}
+
 function getDelegatedOrganizationId(userId: string) {
   return `delegated-${userId}`;
 }

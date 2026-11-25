@@ -1,5 +1,8 @@
 import * as React from "react";
-import { projectsQueryOptions } from "@/client/features/projects/projectQueries";
+import {
+  projectsQueryOptions,
+  useCanManageProjects,
+} from "@/client/features/projects/projectQueries";
 import { Link, useRouter } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { findLast } from "remeda";
@@ -58,6 +61,7 @@ export function ProjectSwitcher({
   const router = useRouter();
   const [creating, setCreating] = React.useState(false);
   const [open, setOpen] = React.useState(false);
+  const canManageProjects = useCanManageProjects(ready);
   const projectsQuery = useQuery({ ...projectsQueryOptions(), enabled: ready });
   const projects = projectsQuery.data ?? [];
   const activeProject =
@@ -138,7 +142,7 @@ export function ProjectSwitcher({
               ) : null}
             </span>
           </ComboboxTrigger>
-          {activeProject ? (
+          {activeProject && canManageProjects ? (
             <Button
               nativeButton={false}
               render={
@@ -194,17 +198,19 @@ export function ProjectSwitcher({
           </ComboboxList>
           <Separator />
           <div className="grid gap-0.5 p-1">
-            <Button
-              variant="ghost"
-              className="justify-start"
-              onClick={() => {
-                setOpen(false);
-                setCreating(true);
-              }}
-            >
-              <Plus className="size-4" />
-              New project
-            </Button>
+            {canManageProjects ? (
+              <Button
+                variant="ghost"
+                className="justify-start"
+                onClick={() => {
+                  setOpen(false);
+                  setCreating(true);
+                }}
+              >
+                <Plus className="size-4" />
+                New project
+              </Button>
+            ) : null}
             <Button
               nativeButton={false}
               render={
@@ -220,12 +226,12 @@ export function ProjectSwitcher({
               className="justify-start"
             >
               <FolderCog className="size-4" />
-              Manage projects
+              {canManageProjects ? "Manage projects" : "Projects"}
             </Button>
           </div>
         </ComboboxContent>
       </Combobox>
-      {creating ? (
+      {canManageProjects && creating ? (
         <CreateProjectModal
           onClose={() => {
             setCreating(false);
