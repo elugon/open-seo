@@ -26,9 +26,9 @@ STUB
 cat > bin/pnpm <<'STUB'
 #!/usr/bin/env bash
 set -e
+printf '%s\n' "$*" >> calls
 grep -qx 'DATAFORSEO_API_KEY=fixture-secret' .env.selfhost
 grep -qxF "$EXPECTED_ADMIN_LINE" .env.selfhost
-printf '%s\n' "$*" >> calls
 STUB
 chmod +x bin/git bin/curl bin/jq bin/pnpm
 export PATH="$scratch/bin:$PATH"
