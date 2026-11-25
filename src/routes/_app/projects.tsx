@@ -1,8 +1,6 @@
 import * as React from "react";
-import {
-  projectsQueryOptions,
-  useCanManageProjects,
-} from "@/client/features/projects/projectQueries";
+import { projectsQueryOptions } from "@/client/features/projects/projectQueries";
+import { useCanManageProjects } from "@/client/features/team/organizationQueries";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronRight, Plus } from "lucide-react";

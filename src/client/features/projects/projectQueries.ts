@@ -1,5 +1,4 @@
-import { queryOptions, useQuery } from "@tanstack/react-query";
-import { organizationContextQueryOptions } from "@/client/features/team/organizationQueries";
+import { queryOptions } from "@tanstack/react-query";
 import { getClientAuthMode } from "@/lib/auth-mode";
 import { getProjectAccess, getProjects } from "@/serverFunctions/projects";
 
@@ -19,12 +18,3 @@ export const projectAccessQueryOptions = (projectId: string) =>
     retry: false,
     staleTime: getClientAuthMode() === "cloudflare_access" ? 0 : Infinity,
   });
-
-export function useCanManageProjects(ready = true) {
-  const selfHostedWithAccess = getClientAuthMode() === "cloudflare_access";
-  const { data } = useQuery({
-    ...organizationContextQueryOptions(),
-    enabled: ready && selfHostedWithAccess,
-  });
-  return !selfHostedWithAccess || data?.role === "owner";
-}

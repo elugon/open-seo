@@ -1,7 +1,7 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { NavTab, NavTabs } from "@/client/components/NavTabs";
 import { PageHeader } from "@/client/components/PageHeader";
-import { useCanManageProjects } from "@/client/features/projects/projectQueries";
+import { useCanManageProjects } from "@/client/features/team/organizationQueries";
 import { getClientAuthMode, usesBetterAuthClient } from "@/lib/auth-mode";
 import { pageHead } from "@/client/lib/pageHead";
 

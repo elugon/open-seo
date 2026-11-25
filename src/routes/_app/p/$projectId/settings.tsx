@@ -2,7 +2,7 @@ import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { ProjectPageHeader } from "@/client/features/projects/ProjectPageHeader";
 import { SettingsTabs } from "@/client/features/projects/SettingsTabs";
 import { pageHead } from "@/client/lib/pageHead";
-import { useCanManageProjects } from "@/client/features/projects/projectQueries";
+import { useCanManageProjects } from "@/client/features/team/organizationQueries";
 import { StatusScreen } from "@/client/components/StatusScreen";
 
 export const Route = createFileRoute("/_app/p/$projectId/settings")({
